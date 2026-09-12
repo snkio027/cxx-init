@@ -121,3 +121,23 @@ Run the black-box test suite with:
 ```bash
 python3 -m unittest discover -s tests -v
 ```
+
+### House-style regression
+
+The [canonical formatter configuration](src/cxx_init/fixtures/canonical-app/.clang-format)
+is the single source of house-style rules; documentation does not keep a second copy.
+Check the [formatting sample](tests/format/house_style.cpp) against its reviewed
+[expected output](tests/format/house_style.expected.cpp) with the fixed clang-format 23.1.x baseline:
+
+```bash
+CLANG_FORMAT=/opt/homebrew/opt/llvm/bin/clang-format python3 tests/check_format.py
+```
+
+`CLANG_FORMAT` selects the executable; it defaults to `clang-format` on PATH. The check reports
+the actual version, reads the canonical config explicitly, and fails on errors or output differences.
+It never rewrites the sample or golden output. Review intentional style changes before updating either.
+
+The sample covers include grouping, pointers/references, access labels, concepts/requires,
+wrapped parameters/arguments, control flow, lambdas, namespaces, and long string literals.
+It is formatting-only: the header names are not build dependencies. This explicit check is separate
+from Python test discovery and wheel acceptance, which do not require a formatter.
