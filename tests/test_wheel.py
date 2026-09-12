@@ -120,8 +120,8 @@ class WheelReleaseTests(unittest.TestCase):
                 commands = json.loads(
                     (project / "build" / preset / "compile_commands.json").read_text()
                 )
-                compiled_sources = {Path(command["file"]).name for command in commands}
-                self.assertEqual(compiled_sources, {"main.cpp", "smoke_test.cpp"})
+                compiled_sources = {Path(command["file"]).resolve() for command in commands}
+                self.assertEqual(compiled_sources, set((project / "src").resolve().rglob("*.cpp")))
 
     def test_installed_wheel_generates_a_working_project(self):
         self.verify_wheel(self.wheel, self.tag)
@@ -136,20 +136,24 @@ class WheelReleaseTests(unittest.TestCase):
         }
         dist_info = f"cxx_init-{version}.dist-info/"
         with zipfile.ZipFile(self.wheel) as archive:
-            wheel_files = set(archive.namelist())
+            wheel_files = {item.filename for item in archive.infolist() if not item.is_dir()}
             metadata = archive.read(dist_info + "METADATA").decode()
             entry_points = archive.read(dist_info + "entry_points.txt").decode()
-        self.assertTrue(expected_fixture_files.issubset(wheel_files))
+        self.assertEqual(expected_fixture_files, {
+            path for path in wheel_files if path.startswith("cxx_init/fixtures/canonical-app/")
+        })
         self.assertIn(dist_info + "licenses/LICENSE", wheel_files)
         self.assertIn("License-Expression: MIT\n", metadata)
         self.assertIn("Requires-Python: >=3.10\n", metadata)
         self.assertNotIn("Requires-Dist:", metadata)
         self.assertEqual(entry_points.rstrip(), "[console_scripts]\ncxx = cxx_init.cli:main")
         with tarfile.open(source_distribution, "r:gz") as archive:
-            source_files = set(archive.getnames())
+            source_files = {item.name for item in archive.getmembers() if item.isfile()}
         source_prefix = f"cxx_init-{version}/"
-        self.assertTrue(
-            {source_prefix + "src/" + path for path in expected_fixture_files}.issubset(source_files)
+        self.assertEqual(
+            {source_prefix + "src/" + path for path in expected_fixture_files},
+            {path for path in source_files
+             if path.startswith(source_prefix + "src/cxx_init/fixtures/canonical-app/")},
         )
         self.assertIn(source_prefix + "LICENSE", source_files)
         self.assertIn(source_prefix + "pyproject.toml", source_files)
@@ -165,13 +169,19 @@ class WheelReleaseTests(unittest.TestCase):
         with zipfile.ZipFile(self.wheel) as archive:
             original = {name: archive.read(name) for name in archive.namelist()}
         metadata_path = next(name for name in original if name.endswith(".dist-info/METADATA"))
+        source = original[fixture].decode()
+        overflow = "#include <limits>\n" + source.replace(
+            "return 0;", "volatile int value = std::numeric_limits<int>::max();\n"
+            "    value = value + 1;\n    return 0;",
+        )
         cases = (
             ("metadata", metadata_path, f"Version: {self.tag[1:]}\n", "Version: 9.9.9\n",
              "distribution version differs from tag"),
             ("cli", "cxx_init/cli.py", f'VERSION = "{self.tag[1:]}"', 'VERSION = "9.9.9"',
              "CLI version differs from tag"),
-            ("exit", fixture, "return 0;", "return 42;", "42 != 0"),
+            ("exit", fixture, "return 0;", "return 42;", r"release_smoke\.smoke[^\n]*\*\*\*Failed"),
             ("output", fixture, "Hello from", "Goodbye from", "unexpected app output"),
+            ("undefined", fixture, source, overflow, "runtime error: signed integer overflow"),
         )
         for case, path, old, new, message in cases:
             with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:

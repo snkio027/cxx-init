@@ -57,6 +57,7 @@ class CxxTests(unittest.TestCase):
             )
             project = workspace / "sensor-hub"
             self.assertTrue((project / "CMakeLists.txt").is_file())
+            self.assertFalse((project / "tests").exists())
             self.assertFalse((project / ".git").exists())
             self.assertIn("project(sensor_hub LANGUAGES CXX)", (project / "CMakeLists.txt").read_text())
             self.assertIn("Hello from sensor-hub!", (project / "src" / "main.cpp").read_text())
@@ -227,8 +228,65 @@ class CxxTests(unittest.TestCase):
             self.assertEqual(workflow.returncode, 0, workflow.stdout + workflow.stderr)
             compilation_database = project / "build" / "dev" / "compile_commands.json"
             commands = json.loads(compilation_database.read_text())
-            compiled_sources = {Path(command["file"]).name for command in commands}
-            self.assertEqual(compiled_sources, {"main.cpp", "smoke_test.cpp"})
+            compiled_sources = {Path(command["file"]).resolve() for command in commands}
+            self.assertEqual(compiled_sources, set((project / "src").resolve().rglob("*.cpp")))
+
+            listing = subprocess.run(
+                ["ctest", "--preset", "dev", "--show-only=json-v1"],
+                cwd=project, capture_output=True, text=True,
+            )
+            self.assertEqual(listing.returncode, 0, listing.stdout + listing.stderr)
+            tests = json.loads(listing.stdout)["tests"]
+            self.assertEqual([test["name"] for test in tests], ["e2e_demo.smoke"])
+            app = project / "build" / "dev" / ("e2e_demo.exe" if os.name == "nt" else "e2e_demo")
+            self.assertEqual(Path(tests[0]["command"][0]).resolve(), app.resolve())
+            properties = {item["name"]: item["value"] for item in tests[0]["properties"]}
+            self.assertEqual(properties["TIMEOUT"], 10)
+
+    def test_ctest_rejects_application_failures(self):
+        overflow = (
+            "volatile int value = std::numeric_limits<int>::max();\n"
+            "    value = value + 1;\n"
+            "    return 0;"
+        )
+        cases = (
+            ("dev", "return 42;", "Hello from failure-demo!"),
+            ("san", "return 42;", "Hello from failure-demo!"),
+            ("san", overflow, "runtime error: signed integer overflow"),
+        )
+        # Check the generated flags, not a caller's sanitizer runtime overrides.
+        environment = {key: value for key, value in os.environ.items()
+                       if key not in ("ASAN_OPTIONS", "UBSAN_OPTIONS")}
+        for preset, replacement, diagnostic in cases:
+            with self.subTest(preset=preset, replacement=replacement), tempfile.TemporaryDirectory() as tmp:
+                workspace = Path(tmp)
+                generation = run_cxx(workspace, "init", "failure-demo", "--no-git")
+                self.assertEqual(generation.returncode, 0, generation.stderr)
+                project = workspace / "failure-demo"
+                source = project / "src" / "main.cpp"
+                source.write_text(
+                    "#include <limits>\n" + source.read_text().replace("return 0;", replacement)
+                )
+                for command in (["cmake", "--preset", preset],
+                                ["cmake", "--build", "--preset", preset]):
+                    result = subprocess.run(command, cwd=project, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+                app = project / "build" / preset / (
+                    "failure_demo.exe" if os.name == "nt" else "failure_demo"
+                )
+                execution = subprocess.run(
+                    [str(app)], cwd=project, env=environment, capture_output=True, text=True,
+                )
+                self.assertNotEqual(execution.returncode, 0, execution.stdout + execution.stderr)
+                self.assertIn(diagnostic, execution.stdout + execution.stderr)
+                result = subprocess.run(
+                    ["ctest", "--preset", preset], cwd=project, env=environment,
+                    capture_output=True, text=True,
+                )
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("failure_demo.smoke", result.stdout)
+                self.assertIn(diagnostic, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

@@ -18,8 +18,10 @@ endif()
 
 if(ENABLE_SANITIZERS)
     if(CMAKE_CXX_COMPILER_ID MATCHES "^(AppleClang|Clang|GNU)$")
+        # Undefined behavior must fail the run, not merely emit a diagnostic.
         target_compile_options(
             robot_runtime PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer
+            -fno-sanitize-recover=undefined
         )
         target_link_options(robot_runtime PRIVATE -fsanitize=address,undefined)
     else()
@@ -28,23 +30,7 @@ if(ENABLE_SANITIZERS)
 endif()
 
 if(BUILD_TESTING)
-    add_executable(robot_runtime_smoke_test tests/smoke_test.cpp)
-    target_compile_features(robot_runtime_smoke_test PRIVATE cxx_std_23)
-    set_target_properties(robot_runtime_smoke_test PROPERTIES CXX_EXTENSIONS OFF)
-
-    if(MSVC)
-        target_compile_options(robot_runtime_smoke_test PRIVATE /W4 /permissive-)
-    elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(AppleClang|Clang|GNU)$")
-        target_compile_options(robot_runtime_smoke_test PRIVATE -Wall -Wextra -Wpedantic)
-    endif()
-
-    if(ENABLE_SANITIZERS)
-        target_compile_options(
-            robot_runtime_smoke_test
-            PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer
-        )
-        target_link_options(robot_runtime_smoke_test PRIVATE -fsanitize=address,undefined)
-    endif()
-
-    add_test(NAME robot_runtime.smoke COMMAND robot_runtime_smoke_test)
+    # Exercise the actual app; a nonzero exit or timeout is a test failure.
+    add_test(NAME robot_runtime.smoke COMMAND robot_runtime)
+    set_tests_properties(robot_runtime.smoke PROPERTIES TIMEOUT 10)
 endif()
