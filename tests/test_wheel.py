@@ -110,7 +110,7 @@ class WheelReleaseTests(unittest.TestCase):
                 'schema = 1\ntemplate = "app"\nlanguage = "c++23"\n',
             )
 
-            for preset in ("dev", "san"):
+            for preset in ("dev", "san", "release"):
                 self.run_checked(["cmake", "--workflow", "--preset", preset], cwd=project)
                 app = project / "build" / preset / (
                     "release_smoke.exe" if os.name == "nt" else "release_smoke"

@@ -13,6 +13,7 @@
       "binaryDir": "${sourceDir}/build/dev",
       "cacheVariables": {
         "BUILD_TESTING": true,
+        "ENABLE_SANITIZERS": false,
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_EXPORT_COMPILE_COMMANDS": true,
         "CMAKE_OSX_SYSROOT": "macosx"
@@ -26,6 +27,15 @@
       "cacheVariables": {
         "ENABLE_SANITIZERS": true
       }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "inherits": "dev",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     }
   ],
   "buildPresets": [
@@ -36,6 +46,10 @@
     {
       "name": "san",
       "configurePreset": "san"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
     }
   ],
   "testPresets": [
@@ -60,6 +74,11 @@
         "noTestsAction": "error",
         "stopOnFailure": true
       }
+    },
+    {
+      "name": "release",
+      "inherits": "dev",
+      "configurePreset": "release"
     }
   ],
   "workflowPresets": [
@@ -96,6 +115,24 @@
         {
           "type": "test",
           "name": "san"
+        }
+      ]
+    },
+    {
+      "name": "release",
+      "displayName": "Release workflow",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "release"
+        },
+        {
+          "type": "build",
+          "name": "release"
+        },
+        {
+          "type": "test",
+          "name": "release"
         }
       ]
     }
