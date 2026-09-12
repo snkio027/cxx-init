@@ -3,3 +3,6 @@ CompileFlags:
 
 Diagnostics:
   MissingIncludes: Strict
+
+Completion:
+  CodePatterns: None
