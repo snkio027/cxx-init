@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -11,10 +12,11 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 CLI = REPOSITORY_ROOT / "src" / "cxx_init" / "cli.py"
 
 
-def run_cxx(working_directory, *arguments, executable=CLI):
+def run_cxx(working_directory, *arguments, executable=CLI, env=None):
     return subprocess.run(
         [sys.executable, str(executable), *arguments],
         cwd=working_directory,
+        env=env,
         check=False,
         capture_output=True,
         text=True,
@@ -89,6 +91,60 @@ class CxxTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue((workspace / "demo" / "CMakeLists.txt").is_file())
+
+    def test_git_repository_environment_cannot_redirect_initialization(self):
+        variables = (
+            "GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+            "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        )
+        for selected in (*((key,) for key in variables), variables):
+            with self.subTest(variables=selected), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                workspace = root / "workspace"
+                workspace.mkdir()
+                outside = root / "outside"
+                outside.mkdir()
+                sentinel = outside / "keep.txt"
+                sentinel.write_text("keep\n")
+                config = root / "gitconfig"
+                config.write_text('[init]\n\tdefaultBranch = personal\n[user]\n\tname = Test User\n')
+                environment = {
+                    key: value for key, value in os.environ.items() if not key.startswith("GIT_")
+                }
+                environment.update(GIT_CONFIG_GLOBAL=str(config), GIT_CONFIG_NOSYSTEM="1")
+                environment.update({key: str(outside / key.lower()) for key in selected})
+
+                result = run_cxx(workspace, "init", "demo", env=environment)
+
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(list(outside.iterdir()), [sentinel])
+                self.assertEqual(sentinel.read_text(), "keep\n")
+                git_directory = workspace / "demo" / ".git"
+                self.assertTrue((git_directory / "config").is_file())
+                self.assertTrue((git_directory / "objects").is_dir())
+                self.assertEqual((git_directory / "HEAD").read_text(), "ref: refs/heads/personal\n")
+                self.assertNotIn("worktree", (git_directory / "config").read_text())
+                self.assertFalse((git_directory / "commondir").exists())
+                self.assertFalse((git_directory / "objects" / "info" / "alternates").exists())
+
+    def test_rejects_reserved_cmake_identifiers_before_writing(self):
+        for name in ("all", "help", "clean", "install", "preinstall", "test",
+                     "rebuild-cache", "edit-cache"):
+            for existing in (False, True):
+                with self.subTest(name=name, existing=existing), tempfile.TemporaryDirectory() as tmp:
+                    workspace = Path(tmp)
+                    destination = workspace / name
+                    if existing:
+                        destination.mkdir()
+
+                    result = run_cxx(workspace, "init", name, "--no-git")
+
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("reserved CMake target", result.stderr)
+                    self.assertIn(name.replace("-", "_"), result.stderr)
+                    self.assertEqual(list(workspace.iterdir()), [destination] if existing else [])
+                    if existing:
+                        self.assertEqual(list(destination.iterdir()), [])
 
     def test_rejects_invalid_names_without_creating_a_destination(self):
         invalid_names = ("Demo", "demo_app", "1demo", "demo/app", ".")

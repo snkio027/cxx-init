@@ -26,17 +26,10 @@ jobs:
 
       - name: Verify the wheel
         env:
-          UV_TOOL_BIN_DIR: ${{ runner.temp }}/uv-tool-bin
-        run: |
-          uv tool install --offline dist/*.whl
-          case "$GITHUB_REF_NAME" in
-            v*) ;;
-            *)
-              echo "release tag must start with v: $GITHUB_REF_NAME" >&2
-              exit 1
-              ;;
-          esac
-          test "$("$UV_TOOL_BIN_DIR/cxx" --version)" = "cxx ${GITHUB_REF_NAME#v}"
+          # Test the distributions uploaded below; do not build a second wheel.
+          CXX_TEST_DIST: ${{ github.workspace }}/dist
+          CXX_RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 -m unittest discover -s tests -p test_wheel.py -v
 
       - name: Upload distributions
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

@@ -1,4 +1,5 @@
 import argparse
+import os
 import re
 import shutil
 import subprocess
@@ -8,6 +9,10 @@ from pathlib import Path
 
 
 NAME_PATTERN = re.compile(r"[a-z][a-z0-9-]*\Z")
+# CMake's reserved lowercase targets, plus `test` because the fixture enables CTest.
+RESERVED_TARGETS = {
+    "all", "help", "install", "preinstall", "clean", "edit_cache", "rebuild_cache", "test",
+}
 FIXTURE_NAME = "robot-runtime"
 FIXTURE_IDENTIFIER = "robot_runtime"
 LOCAL_FIXTURE_ENTRIES = ("build", "CMakeUserPresets.json", ".DS_Store", ".idea", ".vscode")
@@ -37,9 +42,12 @@ def parse_args(argv):
     return parser.parse_args(argv)
 
 
-def validate_destination(name, destination):
+def validate_destination(name, identifier, destination):
     if NAME_PATTERN.fullmatch(name) is None:
         raise GenerationError(f"invalid project name {name!r}; expected [a-z][a-z0-9-]*")
+
+    if identifier in RESERVED_TARGETS:
+        raise GenerationError(f"project name {name!r} produces reserved CMake target {identifier!r}")
 
     if destination.is_symlink():
         raise GenerationError(f"destination must not be a symbolic link: {destination}")
@@ -75,10 +83,18 @@ def render_fixture(root, name, identifier):
 
 
 def initialize_git(root):
+    # A caller's repository paths must not redirect this new repository.
+    environment = os.environ.copy()
+    for variable in (
+        "GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    ):
+        environment.pop(variable, None)
     try:
         result = subprocess.run(
             ["git", "init", "--quiet"],
             cwd=root,
+            env=environment,
             check=False,
             capture_output=True,
             text=True,
@@ -97,8 +113,8 @@ def create_app(name, use_git):
         raise GenerationError(f"bundled app fixture is missing: {fixture}")
 
     destination = Path.cwd() / name
-    destination_was_empty = validate_destination(name, destination)
     identifier = name.replace("-", "_")
+    destination_was_empty = validate_destination(name, identifier, destination)
 
     staging = Path(tempfile.mkdtemp(prefix=f".{name}.cxx-", dir=destination.parent))
     try:
