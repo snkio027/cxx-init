@@ -30,10 +30,10 @@ CMakePresets.json
 .gitignore
 .cxx.toml
 src/main.cpp
-tests/
-cmake/
 ```
 
+CTest runs the app directly with a short timeout; no placeholder test executable is needed.
+Add a `tests/` directory when there is real test code, not as an initial empty directory.
 Avoid helper CMake modules unless they remove real duplication or isolate compiler-specific logic.
 
 Required validation:
@@ -52,7 +52,8 @@ Also verify:
 
 ```text
 compile_commands.json exists
-CTest finds and runs the smoke test
+CTest runs the app and rejects nonzero exits
+san rejects undefined behavior instead of reporting it and continuing
 clangd can consume the development compilation database
 ```
 
