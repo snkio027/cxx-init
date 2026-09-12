@@ -252,6 +252,7 @@ class CxxTests(unittest.TestCase):
         cases = (
             ("dev", "return 42;", "Hello from failure-demo!"),
             ("san", "return 42;", "Hello from failure-demo!"),
+            ("release", "return 42;", "Hello from failure-demo!"),
             ("san", overflow, "runtime error: signed integer overflow"),
         )
         # Check the generated flags, not a caller's sanitizer runtime overrides.
@@ -287,6 +288,45 @@ class CxxTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertIn("failure_demo.smoke", result.stdout)
                 self.assertIn(diagnostic, result.stdout + result.stderr)
+
+    def test_workflows_restore_their_build_scenario(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            generation = run_cxx(workspace, "init", "preset-demo", "--no-git")
+            self.assertEqual(generation.returncode, 0, generation.stderr)
+            project = workspace / "preset-demo"
+            clangd_config = (project / ".clangd").read_bytes()
+
+            for preset, build_type, sanitizers in (
+                ("dev", "Debug", False), ("san", "Debug", True), ("release", "Release", False),
+            ):
+                with self.subTest(preset=preset):
+                    # A prior manual cache override must not change the next workflow's meaning.
+                    seed = subprocess.run(
+                        ["cmake", "--preset", preset,
+                         f"-DENABLE_SANITIZERS={'OFF' if sanitizers else 'ON'}"],
+                        cwd=project, capture_output=True, text=True,
+                    )
+                    self.assertEqual(seed.returncode, 0, seed.stdout + seed.stderr)
+                    workflow = subprocess.run(
+                        ["cmake", "--workflow", "--preset", preset],
+                        cwd=project, capture_output=True, text=True,
+                    )
+                    self.assertEqual(workflow.returncode, 0, workflow.stdout + workflow.stderr)
+                    build = project / "build" / preset
+                    cache = dict(line.split("=", 1) for line in
+                                 (build / "CMakeCache.txt").read_text().splitlines()
+                                 if line.startswith(("CMAKE_BUILD_TYPE:", "ENABLE_SANITIZERS:")))
+                    self.assertEqual(cache["CMAKE_BUILD_TYPE:STRING"], build_type)
+                    self.assertIn(cache["ENABLE_SANITIZERS:BOOL"],
+                                  ("ON", "TRUE", "1") if sanitizers else ("OFF", "FALSE", "0"))
+                    commands = json.loads((build / "compile_commands.json").read_text())
+                    for command in commands:
+                        self.assertEqual(Path(command["directory"]).resolve(), build.resolve())
+                        self.assertEqual("-fsanitize=address,undefined" in command["command"], sanitizers)
+                        self.assertEqual("-fno-sanitize-recover=undefined" in command["command"], sanitizers)
+                    self.assertEqual((project / ".clangd").read_bytes(), clangd_config)
+                    self.assertFalse((project / "compile_commands.json").exists())
 
 
 if __name__ == "__main__":

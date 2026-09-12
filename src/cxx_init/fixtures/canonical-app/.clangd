@@ -1,2 +1,5 @@
 CompileFlags:
   CompilationDatabase: build/dev
+
+Diagnostics:
+  MissingIncludes: Strict

@@ -36,6 +36,35 @@ uv tool uninstall cxx-init
 `cxx` requires Python 3.10 or newer. Generated projects require CMake 3.25 or newer,
 Ninja, and a C++23 compiler.
 
+## Generated project workflows
+
+Each workflow configures, builds, and runs CTest:
+
+| Command | Build type | ASan / UBSan | Directory |
+| --- | --- | --- | --- |
+| `cmake --workflow --preset dev` | Debug | Off | `build/dev` |
+| `cmake --workflow --preset san` | Debug | On | `build/san` |
+| `cmake --workflow --preset release` | Release | Off | `build/release` |
+
+The configure step restores the preset's sanitizer setting even after a manual cache override.
+`release` is a local optimized build, not a packaging or publishing command.
+
+The template fixes the project's editing baseline, including direct-include diagnostics.
+clangd always uses `build/dev/compile_commands.json`; running `san` or `release` does not switch it.
+Configure `dev` before editing C++ files.
+
+Choose a compiler before the first configure of each build directory. For example, on macOS:
+
+```bash
+CXX=/opt/homebrew/opt/llvm/bin/clang++ cmake --workflow --preset dev
+```
+
+CMake caches that choice; changing `CXX` later does not switch an already configured directory.
+Use a separate build directory when comparing compilers. Machine-specific paths or SDK overrides
+can be recorded in the ignored `CMakeUserPresets.json`; no extra config is needed for normal use.
+If an explicit compiler experiment uses another compilation database, select it explicitly in
+clangd as well. Project style and diagnostic preferences remain fixed in the template.
+
 ## Design priorities
 
 1. Personal developer experience first.
