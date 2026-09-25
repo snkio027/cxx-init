@@ -163,7 +163,21 @@ better inspect command
 release packaging
 ```
 
-C++26, Modules, ROS and CUDA remain separate decisions.
+C++26, custom Modules, ROS and CUDA remain separate decisions.
+
+## v0.2.0 — Experimental standard-library import
+
+The approved addition is `cxx init <name> --import-std`, not `--modules`.
+Preserve the default generated files byte-for-byte; reuse their fixture for the opt-in
+path. It must fail clearly on unavailable metadata or unsupported toolchains, without
+falling back, installing tools, changing host/editor configuration or introducing profiles.
+
+Before release, run source regressions and install the candidate wheel into an isolated
+tool environment. Validate both headers and import-std projects through dev/san/release,
+CTest, exact output and compilation databases. For import-std, also run formatting,
+clangd static checking and classified clang-tidy diagnostics with the verified Mac toolchain.
+Keep existing version, fault-wheel, Ubuntu and Trusted Publishing gates. A successful
+Ubuntu headers run must not be described as import-std portability verification.
 
 ## v0.1 Definition of Done
 

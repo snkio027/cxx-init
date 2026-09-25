@@ -63,19 +63,13 @@ If not, defer it.
 
 ## Current scope
 
-The current milestone packages the proven `cxx init` workflow for a `0.1.0` release.
-
-It may add only:
+The current authorized release is v0.2.0. It may add only:
 
 ```text
-standard Python package metadata
-MIT license
-src-layout package
-bundled canonical fixture
-cxx --version
-wheel and source distribution
-installed-wheel end-to-end verification
-installation documentation
+experimental cxx init <name> --import-std
+fixed specialization of the existing canonical fixture
+explicit environment-supplied module metadata
+corresponding documentation and black-box / installed-wheel verification
 ```
 
 The release gate is:
@@ -83,13 +77,15 @@ The release gate is:
 ```text
 build wheel
 install wheel into an isolated tool environment
-cxx init
-configure
-build
-test
+cxx init (headers and explicit import-std)
+dev / san / release configure, build, test
+exact runtime output and compilation databases
+import-std tooling checks on the verified macOS LLVM environment
+existing Ubuntu and Trusted Publishing gates
 ```
 
-Do not upload to PyPI, create release credentials or add release automation in the packaging PR.
+Publishing requires explicit release authorization; never bypass failed gates or add credentials.
+Do not introduce `--modules`, custom named modules, module partitions, header units or profiles.
 Do not add `lib`, `header-only`, Homebrew, standalone binaries, self-update or auto-versioning.
 
 ## Implementation freedom

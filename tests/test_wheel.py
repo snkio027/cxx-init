@@ -13,6 +13,8 @@ import unittest
 import zipfile
 from pathlib import Path
 
+from test_import_std import verify_import_std_project
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 UV = shutil.which("uv")
@@ -27,7 +29,7 @@ class WheelReleaseTests(unittest.TestCase):
         cls.addClassCleanup(temporary.cleanup)
         root = Path(temporary.name)
         supplied_dist = os.environ.get("CXX_TEST_DIST")
-        cls.tag = os.environ["CXX_RELEASE_TAG"] if supplied_dist is not None else "v0.1.2"
+        cls.tag = os.environ["CXX_RELEASE_TAG"] if supplied_dist is not None else "v0.2.0"
         cls.dist = Path(supplied_dist).resolve() if supplied_dist is not None else root / "dist"
         if supplied_dist is None:
             # Requires uv with a bundled backend compatible with pyproject.toml.
@@ -56,7 +58,7 @@ class WheelReleaseTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return result
 
-    def verify_wheel(self, wheel, tag):
+    def verify_wheel(self, wheel, tag, *, import_std=False):
         self.assertTrue(tag.startswith("v") and len(tag) > 1, "release tag must start with v")
         expected_version = tag[1:]
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -97,7 +99,7 @@ class WheelReleaseTests(unittest.TestCase):
             workspace = root / "workspace"
             workspace.mkdir()
             generation = self.run_checked(
-                [str(executable), "init", "release-smoke"],
+                [str(executable), "init", "release-smoke", *(["--import-std"] if import_std else [])],
                 cwd=workspace,
                 env=environment,
             )
@@ -107,8 +109,15 @@ class WheelReleaseTests(unittest.TestCase):
             self.assertTrue((project / ".git").is_dir())
             self.assertEqual(
                 (project / ".cxx.toml").read_text(),
-                'schema = 1\ntemplate = "app"\nlanguage = "c++23"\n',
+                'schema = 1\ntemplate = "app"\nlanguage = "c++23"\n'
+                + ('stdlib = "import-std"\n' if import_std else ''),
             )
+
+            if import_std:
+                self.assertIn("import std [experimental]", generation.stdout)
+                self.assertTrue((project / "README.md").is_file())
+                verify_import_std_project(self, project, environment)
+                return
 
             for preset in ("dev", "san", "release"):
                 self.run_checked(["cmake", "--workflow", "--preset", preset], cwd=project)
@@ -125,6 +134,11 @@ class WheelReleaseTests(unittest.TestCase):
 
     def test_installed_wheel_generates_a_working_project(self):
         self.verify_wheel(self.wheel, self.tag)
+
+    @unittest.skipUnless(os.environ.get("CXX_TEST_IMPORT_STD") == "1",
+                         "requires explicitly selected macOS LLVM import-std toolchain")
+    def test_installed_wheel_generates_import_std_project(self):
+        self.verify_wheel(self.wheel, self.tag, import_std=True)
 
     def test_distribution_contents(self):
         version = self.tag[1:]
@@ -143,6 +157,7 @@ class WheelReleaseTests(unittest.TestCase):
             path for path in wheel_files if path.startswith("cxx_init/fixtures/canonical-app/")
         })
         self.assertIn(dist_info + "licenses/LICENSE", wheel_files)
+        self.assertIn("cxx_init/import_std.md", wheel_files)
         self.assertIn("License-Expression: MIT\n", metadata)
         self.assertIn("Requires-Python: >=3.10\n", metadata)
         self.assertNotIn("Requires-Dist:", metadata)
@@ -157,9 +172,10 @@ class WheelReleaseTests(unittest.TestCase):
         )
         self.assertIn(source_prefix + "LICENSE", source_files)
         self.assertIn(source_prefix + "pyproject.toml", source_files)
+        self.assertIn(source_prefix + "src/cxx_init/import_std.md", source_files)
 
     def test_gate_rejects_tags_without_v_and_mismatched_versions(self):
-        for tag, message in (("0.1.2", "must start with v"),
+        for tag, message in (("0.2.0", "must start with v"),
                              ("v9.9.9", "distribution version differs from tag")):
             with self.subTest(tag=tag), self.assertRaisesRegex(AssertionError, message):
                 self.verify_wheel(self.wheel, tag)
