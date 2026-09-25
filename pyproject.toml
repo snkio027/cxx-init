@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "cxx-init"
-version = "0.1.1"
+version = "0.1.2"
 description = "A small modern C++ project initializer."
 readme = "README.md"
 requires-python = ">=3.10"
