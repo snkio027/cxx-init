@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import re
 import shutil
@@ -16,7 +17,7 @@ RESERVED_TARGETS = {
 FIXTURE_NAME = "robot-runtime"
 FIXTURE_IDENTIFIER = "robot_runtime"
 LOCAL_FIXTURE_ENTRIES = ("build", "CMakeUserPresets.json", ".DS_Store", ".idea", ".vscode")
-VERSION = "0.1.2"
+VERSION = "0.2.0"
 
 
 class GenerationError(Exception):
@@ -33,6 +34,10 @@ def parse_args(argv):
 
     init_parser = commands.add_parser("init", help="create an executable project")
     init_parser.add_argument("name", help="project name: [a-z][a-z0-9-]*")
+    init_parser.add_argument(
+        "--import-std", action="store_true",
+        help="use experimental C++23 import std (verified on macOS + Homebrew LLVM)",
+    )
     init_parser.add_argument(
         "--no-git",
         action="store_true",
@@ -107,7 +112,51 @@ def initialize_git(root):
         raise GenerationError(f"git init failed: {detail}")
 
 
-def create_app(name, use_git):
+def enable_import_std(root):
+    # Specialize the shared fixture; do not maintain a second project template.
+    prefix = '''cmake_minimum_required(VERSION 4.4)
+
+# Experimental gate verified with CMake 4.4.3; recheck when upgrading CMake.
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "f35a9ac6-8463-4d38-8eec-5d6008153e7d")
+if(NOT EXISTS "${CMAKE_CXX_STDLIB_MODULES_JSON}")
+    message(FATAL_ERROR
+        "import std requires libc++.modules.json: set CMAKE_CXX_STDLIB_MODULES_JSON. See README.md")
+endif()
+
+project(robot_runtime LANGUAGES CXX)
+
+if(NOT APPLE OR NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    message(FATAL_ERROR "This import std experiment requires macOS and upstream Clang/libc++")
+endif()
+if(NOT "23" IN_LIST CMAKE_CXX_COMPILER_IMPORT_STD)
+    message(FATAL_ERROR "The selected toolchain does not provide C++23 import std support")
+endif()'''
+    changes = (
+        ("CMakeLists.txt", "cmake_minimum_required(VERSION 3.25)\n\n"
+         "project(robot_runtime LANGUAGES CXX)", prefix),
+        ("CMakeLists.txt", "PROPERTIES CXX_EXTENSIONS OFF)",
+         "PROPERTIES CXX_EXTENSIONS OFF CXX_MODULE_STD ON)"),
+        ("src/main.cpp", "#include <iostream>", "import std;"),
+    )
+    for filename, old, new in changes:
+        path = root / filename
+        content = path.read_text(encoding="utf-8")
+        if content.count(old) != 1:
+            raise GenerationError(f"import std fixture anchor is missing or ambiguous: {filename}")
+        path.write_text(content.replace(old, new), encoding="utf-8")
+
+    presets_path = root / "CMakePresets.json"
+    presets = json.loads(presets_path.read_text(encoding="utf-8"))
+    presets["cmakeMinimumRequired"] = {"major": 4, "minor": 4, "patch": 0}
+    dev = next(preset for preset in presets["configurePresets"] if preset["name"] == "dev")
+    dev["cacheVariables"]["CMAKE_CXX_STDLIB_MODULES_JSON"] = "$env{CMAKE_CXX_STDLIB_MODULES_JSON}"
+    presets_path.write_text(json.dumps(presets, indent=2) + "\n", encoding="utf-8")
+    provenance = root / ".cxx.toml"
+    provenance.write_text(provenance.read_text() + 'stdlib = "import-std"\n', encoding="utf-8")
+    shutil.copyfile(Path(__file__).with_name("import_std.md"), root / "README.md")
+
+
+def create_app(name, use_git, import_std=False):
     fixture = Path(__file__).resolve().parent / "fixtures" / "canonical-app"
     if not fixture.is_dir():
         raise GenerationError(f"bundled app fixture is missing: {fixture}")
@@ -124,6 +173,8 @@ def create_app(name, use_git):
             dirs_exist_ok=True,
             ignore=shutil.ignore_patterns(*LOCAL_FIXTURE_ENTRIES),
         )
+        if import_std:
+            enable_import_std(staging)
         render_fixture(staging, name, identifier)
 
         if use_git:
@@ -146,15 +197,21 @@ def main(argv=None):
     args = parse_args(argv)
 
     try:
-        destination = create_app(args.name, use_git=not args.no_git)
+        destination = create_app(args.name, use_git=not args.no_git, import_std=args.import_std)
     except (GenerationError, OSError) as error:
         print(f"cxx: error: {error}", file=sys.stderr)
         return 1
 
     print(f"Created C++ project: {destination.name}")
+    if args.import_std:
+        print("Standard library mode: import std [experimental]")
+        print("Verified toolchain: macOS + Homebrew LLVM (see README.md)")
     print()
     print("Next:")
     print(f"  cd {args.name}")
+    if args.import_std:
+        print('  export CXX="$(brew --prefix llvm)/bin/clang++"')
+        print('  export CMAKE_CXX_STDLIB_MODULES_JSON="$(brew --prefix llvm)/lib/c++/libc++.modules.json"')
     print("  cmake --workflow --preset dev")
     return 0
 

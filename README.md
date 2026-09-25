@@ -36,6 +36,33 @@ uv tool uninstall cxx-init
 `cxx` requires Python 3.10 or newer. Generated projects require CMake 3.25 or newer,
 Ninja, and a C++23 compiler.
 
+## Experimental standard-library import
+
+```bash
+cxx init demo --import-std
+cd demo
+export CXX="$(brew --prefix llvm)/bin/clang++"
+export CMAKE_CXX_STDLIB_MODULES_JSON="$(brew --prefix llvm)/lib/c++/libc++.modules.json"
+cmake --workflow --preset dev
+```
+
+This opt-in replaces standard headers with C++23 `import std;`; the ordinary command
+and its generated files are unchanged. It is **experimental**, currently verified only
+on Apple Silicon macOS with Homebrew LLVM/libc++ 23.1.2, CMake 4.4.3 and Ninja 1.13.2.
+Verified versions are not a blanket compatibility promise. The opt-in project's CMake
+minimum is 4.4 and its experimental gate must be rechecked when upgrading CMake.
+
+The shared dev/san/release workflows, CTest and clang configs remain in use. Supply
+metadata through the environment for each workflow; machine paths are not embedded in
+the generated project. Creation stays offline and does not probe or install toolchains.
+Unsupported tools or missing metadata fail at configure/build, with no headers fallback.
+
+clangd may suggest redundant standard-library includes. Do not enable
+`--experimental-modules-support` for the verified setup; its generated PCM showed a
+configuration mismatch. clang-tidy may diagnose libc++ module sources. The generated
+[mode README](src/cxx_init/import_std.md) records setup and limitations. There is no
+global editor change, general `--modules` option or custom module/partition generation.
+
 ## Generated project workflows
 
 Each workflow configures, builds, and runs CTest:
@@ -100,7 +127,7 @@ ASan / UBSan where supported
 compile_commands.json
 ```
 
-Dependency managers, C++26, Modules, ROS, CUDA, benchmarking and fuzzing are intentionally deferred.
+Dependency managers, C++26, custom Modules, ROS, CUDA, benchmarking and fuzzing remain deferred.
 
 ## Repository documents
 
@@ -121,6 +148,27 @@ Run the black-box test suite with:
 ```bash
 python3 -m unittest discover -s tests -v
 ```
+
+For the v0.2.0 release gate on the verified Mac toolchain, explicitly enable the
+import-std artifact tests (otherwise they are reported as skipped, not verified):
+
+```bash
+export CXX="$(brew --prefix llvm)/bin/clang++"
+export CMAKE_CXX_STDLIB_MODULES_JSON="$(brew --prefix llvm)/lib/c++/libc++.modules.json"
+export CLANG_FORMAT="$(brew --prefix llvm)/bin/clang-format"
+export CLANGD="$(brew --prefix llvm)/bin/clangd"
+export CLANG_TIDY="$(brew --prefix llvm)/bin/clang-tidy"
+uv build --no-sources
+CXX_TEST_IMPORT_STD=1 CXX_TEST_DIST="$PWD/dist" CXX_RELEASE_TAG=v0.2.0 \
+  python3 -m unittest discover -s tests -v
+```
+
+This tests the supplied wheel without rebuilding it. Both modes run all three
+workflows with exact application output and real compilation database checks.
+The import-std path also checks formatting, clangd and clang-tidy; only the observed
+libc++ `_Exit` reserved-identifier warning is accepted. Application warnings still fail.
+The unchanged Ubuntu publishing workflow verifies the headers path; it does not
+claim Linux import-std support. Do not release without the separate Mac gate.
 
 ### House-style regression
 

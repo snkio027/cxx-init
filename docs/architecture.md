@@ -70,6 +70,31 @@ MSVC
 
 ## 4. Build truth
 
+### Standard-library module adoption (v0.2)
+
+`cxx init <name> --import-std` explicitly enables experimental C++23 standard-library
+module adoption. The default command and its headers-based output remain unchanged.
+This is not general Modules support: custom named modules, partitions, header units
+and a general module project profile remain outside the generator contract.
+
+The two paths share one canonical fixture, target graph, workflows and clang configuration.
+Fixed transformations introduce only the required module differences and a short generated
+README. There is no second full template, profile engine, capability registry or fallback
+to headers. Provenance adds `stdlib = "import-std"` only for the opt-in path.
+
+The currently verified environment is macOS with Homebrew LLVM/libc++. The experimental
+project requires upstream Clang on macOS; other environments are not silently accepted.
+Metadata location is supplied through the preset's environment input
+`CMAKE_CXX_STDLIB_MODULES_JSON`, never a generated host path. Toolchain validation happens
+at configure/build, not via host probes or installation during project creation.
+
+Verified versions are evidence, not universal minimum-version guarantees. The generated
+project documents its version-specific CMake gate and known clangd/clang-tidy limitations.
+Release testing must exercise both paths from an installed wheel on the supported Mac;
+the existing Ubuntu headers release gate does not establish Linux import-std support.
+
+### Single source of build semantics
+
 CMake owns build semantics.
 
 ```text
@@ -258,7 +283,7 @@ Do not include these in the first implementation:
 vcpkg
 Conan
 C++26
-C++ Modules
+custom C++ named modules, partitions, header units and general module profiles
 ROS
 CUDA
 embedded profiles
