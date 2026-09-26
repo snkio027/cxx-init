@@ -176,6 +176,11 @@ Before release, run source regressions and install the candidate wheel into an i
 tool environment. Validate both headers and import-std projects through dev/san/release,
 CTest, exact output and compilation databases. For import-std, also run formatting,
 clangd static checking and classified clang-tidy diagnostics with the verified Mac toolchain.
+Keep a separate real LSP diagnostics regression in the installed-wheel gate: generated
+import-std projects use project-local `MissingIncludes: None`, while headers retain `Strict`.
+Check the Strict false positive, its disappearance with None, ordinary semantic errors,
+diagnostic recovery after buffer repair, and the exception warning in both source forms.
+Do not change source exception semantics or interpret static checking as full LSP coverage.
 Keep existing version, fault-wheel, Ubuntu and Trusted Publishing gates. A successful
 Ubuntu headers run must not be described as import-std portability verification.
 

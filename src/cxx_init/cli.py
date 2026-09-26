@@ -137,6 +137,7 @@ endif()'''
         ("CMakeLists.txt", "PROPERTIES CXX_EXTENSIONS OFF)",
          "PROPERTIES CXX_EXTENSIONS OFF CXX_MODULE_STD ON)"),
         ("src/main.cpp", "#include <iostream>", "import std;"),
+        (".clangd", "MissingIncludes: Strict", "MissingIncludes: None"),
     )
     for filename, old, new in changes:
         path = root / filename

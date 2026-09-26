@@ -77,7 +77,8 @@ module adoption. The default command and its headers-based output remain unchang
 This is not general Modules support: custom named modules, partitions, header units
 and a general module project profile remain outside the generator contract.
 
-The two paths share one canonical fixture, target graph, workflows and clang configuration.
+The two paths share one canonical fixture, target graph, workflows and clang configuration,
+except for the necessary project-local `MissingIncludes` override described below.
 Fixed transformations introduce only the required module differences and a short generated
 README. There is no second full template, profile engine, capability registry or fallback
 to headers. Provenance adds `stdlib = "import-std"` only for the opt-in path.
@@ -92,6 +93,18 @@ Verified versions are evidence, not universal minimum-version guarantees. The ge
 project documents its version-specific CMake gate and known clangd/clang-tidy limitations.
 Release testing must exercise both paths from an installed wheel on the supported Mac;
 the existing Ubuntu headers release gate does not establish Linux import-std support.
+
+Headers projects retain `Diagnostics.MissingIncludes: Strict`. Import-std projects use
+`None` because Include Cleaner can incorrectly require textual standard-library headers
+for symbols provided by `import std;`. Only this project-local diagnostic is changed;
+unused-include checking, semantic diagnostics, clang-tidy policy and exception semantics
+remain shared. Do not add headers, global editor changes or a profile framework to mask
+the issue. `bugprone-exception-escape` on `std::println` also occurs with headers and is
+not a module-specific limitation. Any entry-point exception policy is a separate decision.
+
+Distinguish compiler/build checks, command-line tooling and real editor/LSP validation.
+`clangd --check` is a static smoke test; editor diagnostics require a real LSP session.
+Passing either does not imply complete completion, indexing, navigation or rename coverage.
 
 ### Single source of build semantics
 
