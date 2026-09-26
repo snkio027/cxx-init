@@ -69,7 +69,7 @@ Neither mode changes exception semantics to silence that policy. The generated
 global editor change, general `--modules` option or custom module/partition generation.
 
 The published **v0.2.0** artifact still generates `MissingIncludes: Strict` in both modes.
-The project-local override is a post-v0.2.0 correction in this source revision, not a
+The project-local override is a v0.2.1 correction, not a
 retroactive change to that release. Existing import-std projects can set `None` manually;
 upgrading the generator never rewrites existing projects.
 
@@ -160,7 +160,7 @@ Run the black-box test suite with:
 python3 -m unittest discover -s tests -v
 ```
 
-For the v0.2.0 release gate on the verified Mac toolchain, explicitly enable the
+For the v0.2.1 release gate on the verified Mac toolchain, explicitly enable the
 import-std artifact tests (otherwise they are reported as skipped, not verified):
 
 ```bash
@@ -170,7 +170,7 @@ export CLANG_FORMAT="$(brew --prefix llvm)/bin/clang-format"
 export CLANGD="$(brew --prefix llvm)/bin/clangd"
 export CLANG_TIDY="$(brew --prefix llvm)/bin/clang-tidy"
 uv build --no-sources
-CXX_TEST_IMPORT_STD=1 CXX_TEST_DIST="$PWD/dist" CXX_RELEASE_TAG=v0.2.0 \
+CXX_TEST_IMPORT_STD=1 CXX_TEST_DIST="$PWD/dist" CXX_RELEASE_TAG=v0.2.1 \
   python3 -m unittest discover -s tests -v
 ```
 

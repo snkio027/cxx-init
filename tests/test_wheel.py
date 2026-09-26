@@ -29,7 +29,7 @@ class WheelReleaseTests(unittest.TestCase):
         cls.addClassCleanup(temporary.cleanup)
         root = Path(temporary.name)
         supplied_dist = os.environ.get("CXX_TEST_DIST")
-        cls.tag = os.environ["CXX_RELEASE_TAG"] if supplied_dist is not None else "v0.2.0"
+        cls.tag = os.environ["CXX_RELEASE_TAG"] if supplied_dist is not None else "v0.2.1"
         cls.dist = Path(supplied_dist).resolve() if supplied_dist is not None else root / "dist"
         if supplied_dist is None:
             # Requires uv with a bundled backend compatible with pyproject.toml.
@@ -175,7 +175,7 @@ class WheelReleaseTests(unittest.TestCase):
         self.assertIn(source_prefix + "src/cxx_init/import_std.md", source_files)
 
     def test_gate_rejects_tags_without_v_and_mismatched_versions(self):
-        for tag, message in (("0.2.0", "must start with v"),
+        for tag, message in (("0.2.1", "must start with v"),
                              ("v9.9.9", "distribution version differs from tag")):
             with self.subTest(tag=tag), self.assertRaisesRegex(AssertionError, message):
                 self.verify_wheel(self.wheel, tag)
