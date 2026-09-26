@@ -63,7 +63,8 @@ If not, defer it.
 
 ## Current scope
 
-The current authorized release is v0.2.0. It may add only:
+The current authorized release is v0.2.1, carrying the reviewed project-local clangd
+correction. The experimental capability remains limited to:
 
 ```text
 experimental cxx init <name> --import-std
