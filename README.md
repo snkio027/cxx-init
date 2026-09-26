@@ -52,16 +52,26 @@ on Apple Silicon macOS with Homebrew LLVM/libc++ 23.1.2, CMake 4.4.3 and Ninja 1
 Verified versions are not a blanket compatibility promise. The opt-in project's CMake
 minimum is 4.4 and its experimental gate must be rechecked when upgrading CMake.
 
-The shared dev/san/release workflows, CTest and clang configs remain in use. Supply
+The shared dev/san/release workflows, CTest and clang configs remain in use, with one
+project-local exception: import-std sets `Diagnostics.MissingIncludes: None` because
+Include Cleaner can falsely require textual standard-library headers. Headers projects
+keep `Strict`; ordinary semantic diagnostics and clang-tidy remain enabled. Supply
 metadata through the environment for each workflow; machine paths are not embedded in
 the generated project. Creation stays offline and does not probe or install toolchains.
 Unsupported tools or missing metadata fail at configure/build, with no headers fallback.
 
 clangd may suggest redundant standard-library includes. Do not enable
 `--experimental-modules-support` for the verified setup; its generated PCM showed a
-configuration mismatch. clang-tidy may diagnose libc++ module sources. The generated
+configuration mismatch. clang-tidy may diagnose libc++ module sources; an exception-escape
+warning for `main()` using `std::println` also occurs with headers and is not a module bug.
+Neither mode changes exception semantics to silence that policy. The generated
 [mode README](src/cxx_init/import_std.md) records setup and limitations. There is no
 global editor change, general `--modules` option or custom module/partition generation.
+
+The published **v0.2.0** artifact still generates `MissingIncludes: Strict` in both modes.
+The project-local override is a post-v0.2.0 correction in this source revision, not a
+retroactive change to that release. Existing import-std projects can set `None` manually;
+upgrading the generator never rewrites existing projects.
 
 ## Generated project workflows
 
@@ -76,7 +86,8 @@ Each workflow configures, builds, and runs CTest:
 The configure step restores the preset's sanitizer setting even after a manual cache override.
 `release` is a local optimized build, not a packaging or publishing command.
 
-The template fixes the project's editing baseline, including direct-include diagnostics.
+The template fixes the project's editing baseline, including direct-include diagnostics
+for headers projects and the documented import-std exception above.
 clangd always uses `build/dev/compile_commands.json`; running `san` or `release` does not switch it.
 Configure `dev` before editing C++ files.
 
@@ -165,10 +176,32 @@ CXX_TEST_IMPORT_STD=1 CXX_TEST_DIST="$PWD/dist" CXX_RELEASE_TAG=v0.2.0 \
 
 This tests the supplied wheel without rebuilding it. Both modes run all three
 workflows with exact application output and real compilation database checks.
-The import-std path also checks formatting, clangd and clang-tidy; only the observed
+The import-std path also checks formatting, static `clangd --check`, real LSP diagnostics
+and clang-tidy; only the observed
 libc++ `_Exit` reserved-identifier warning is accepted. Application warnings still fail.
+The LSP regression separately introduces `std::println` in unsaved buffers to verify that
+the shared exception warning remains active in both module and header forms; it does not
+rewrite the generated app or weaken the command-line clang-tidy gate.
 The unchanged Ubuntu publishing workflow verifies the headers path; it does not
 claim Linux import-std support. Do not release without the separate Mac gate.
+
+### Tooling acceptance boundaries
+
+The import-std capability remains **Forward-ready / experimental**, not a blanket
+"tooling PASS". On the verified Mac toolchain, distinguish these layers:
+
+| Layer | Evidence / gate | Boundary |
+| --- | --- | --- |
+| Build and runtime | Installed wheel, both modes, dev/san/release, exact output, compilation databases | No import-std portability claim |
+| Static tooling | clang-format, `clangd --check`, classified clang-tidy diagnostics | Not an interactive LSP session |
+| Real LSP diagnostics | `didOpen` / `didChange` / versioned `publishDiagnostics`, including failure and recovery | Strict has a known import-std false positive; project-local None mitigates it |
+| Exception policy | `std::println` warns with both `import std` and `<print>` | Not module-specific; no generated catch-all |
+| Hover / member completion / background index | Earlier exploratory observations, not covered by this diagnostics regression | Not a comprehensive or current release gate |
+| Goto definition / rename | Not formally gated | No PASS claim |
+
+The v0.2.0 static check result did not establish an editor-wide diagnostics PASS.
+The real LSP regression is added after that release; it runs for both checkout and
+installed-wheel import-std projects when `CXX_TEST_IMPORT_STD=1`.
 
 ### House-style regression
 

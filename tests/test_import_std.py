@@ -9,6 +9,44 @@ import tempfile
 import unittest
 
 from test_cxx import CLI, run_cxx
+from clangd_lsp import collect_diagnostics
+
+
+def verify_import_std_diagnostics(test, project, environment):
+    """Check real publishDiagnostics, independently of the static --check smoke test."""
+    path = project / "src/main.cpp"
+    source = path.read_text()
+    config = project / ".clangd"
+    original_config = config.read_text()
+    test.assertIn("MissingIncludes: None", original_config)
+    println = 'import std;\nint main() { std::println("hello"); return 0; }\n'
+    invalid = source.replace("return 0;", "return cxx_missing_symbol;")
+    normal, exception, broken, restored = collect_diagnostics(
+        project, environment, [source, println, invalid, source],
+    )
+    test.assertEqual(normal, [])
+    test.assertEqual(restored, [])
+    test.assertNotIn("missing-includes", {item.get("code") for item in exception})
+    test.assertIn("bugprone-exception-escape", {item.get("code") for item in exception})
+    test.assertFalse(any(item.get("severity") == 1 for item in exception), exception)
+    test.assertTrue(any(item.get("severity") == 1 and "cxx_missing_symbol" in item["message"]
+                        for item in broken), broken)
+
+    # A/B control on this disposable generated project, never on user configuration.
+    try:
+        config.write_text(original_config.replace("MissingIncludes: None", "MissingIncludes: Strict"))
+        strict, header = collect_diagnostics(
+            project, environment, [println, println.replace("import std;", "#include <print>")],
+        )
+        test.assertIn("missing-includes", {item.get("code") for item in strict})
+        test.assertFalse(any(item.get("severity") == 1 for item in strict), strict)
+        for diagnostics in (strict, header):
+            test.assertIn("bugprone-exception-escape", {item.get("code") for item in diagnostics})
+        test.assertNotIn("missing-includes", {item.get("code") for item in header})
+        test.assertFalse(any(item.get("severity") == 1 for item in header), header)
+    finally:
+        config.write_text(original_config)
+    test.assertEqual(path.read_text(), source)
 
 
 def verify_import_std_project(test, project, environment):
@@ -48,6 +86,7 @@ def verify_import_std_project(test, project, environment):
          "--style=file", "src/main.cpp"])
     run([environment.get("CLANGD", "clangd"), "--check=src/main.cpp",
          "--compile-commands-dir=build/dev", "--enable-config"])
+    verify_import_std_diagnostics(test, project, environment)
     tidy = run([environment.get("CLANG_TIDY", "clang-tidy"), "src/main.cpp",
                 "-p", "build/dev", "--config-file=.clang-tidy"])
     # Do not suppress checks: only the observed libc++ module diagnostic is allowed.
@@ -81,11 +120,18 @@ class ImportStdTests(unittest.TestCase):
                 self.assertEqual((headers / relative).read_text(), (fixture / relative).read_text()
                                  .replace("robot-runtime", "headers-demo")
                                  .replace("robot_runtime", "headers_demo"))
-            for relative in (".clangd", ".clang-tidy", ".clang-format", ".gitignore"):
+            for relative in (".clang-tidy", ".clang-format", ".gitignore"):
                 self.assertEqual((headers / relative).read_bytes(), (modules / relative).read_bytes())
+            clangd = (headers / ".clangd").read_text()
+            self.assertIn("MissingIncludes: Strict", clangd)
+            self.assertEqual((modules / ".clangd").read_text(),
+                             clangd.replace("MissingIncludes: Strict", "MissingIncludes: None"))
             source = (modules / "src/main.cpp").read_text()
             self.assertTrue(source.startswith("import std;\n"))
             self.assertNotIn("#include", source)
+            self.assertEqual(source, (headers / "src/main.cpp").read_text()
+                             .replace("#include <iostream>", "import std;")
+                             .replace("headers-demo", "std-demo"))
             self.assertIn('stdlib = "import-std"', (modules / ".cxx.toml").read_text())
             for path in modules.rglob("*"):
                 if path.is_file():
