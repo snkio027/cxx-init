@@ -14,6 +14,7 @@ import zipfile
 from pathlib import Path
 
 from test_import_std import verify_import_std_project
+from test_clangd import verify_headers_diagnostics
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -131,6 +132,9 @@ class WheelReleaseTests(unittest.TestCase):
                 )
                 compiled_sources = {Path(command["file"]).resolve() for command in commands}
                 self.assertEqual(compiled_sources, set((project / "src").resolve().rglob("*.cpp")))
+
+            if os.environ.get("CXX_TEST_CLANGD") == "1":
+                verify_headers_diagnostics(self, project, environment)
 
     def test_installed_wheel_generates_a_working_project(self):
         self.verify_wheel(self.wheel, self.tag)
