@@ -63,8 +63,8 @@ If not, defer it.
 
 ## Current scope
 
-The current authorized release is v0.2.1, carrying the reviewed project-local clangd
-correction. The experimental capability remains limited to:
+The current authorized release is v0.3.0, carrying owned-source missing-include
+diagnostics and explicit vcpkg integration. The experimental module capability remains limited to:
 
 ```text
 experimental cxx init <name> --import-std
@@ -82,14 +82,15 @@ cxx init (headers and explicit import-std)
 dev / san / release configure, build, test
 exact runtime output and compilation databases
 import-std tooling checks on the verified macOS LLVM environment
+explicit vcpkg checks with a compiled dependency, including import-std composition
 existing Ubuntu and Trusted Publishing gates
 ```
 
 Publishing requires explicit release authorization; never bypass failed gates or add credentials.
-The next approved development increment adds only explicit `cxx init <name> --vcpkg`,
-including composition with `--import-std`. It is not authorization to publish a release.
-Update the dependency contract before implementing it: offline generation, unchanged default
-fixture, project-owned fixed baseline, existing environment-supplied toolchain, no wrappers.
+The approved dependency integration is explicit `cxx init <name> --vcpkg`,
+including composition with `--import-std`. Preserve its dependency contract: offline
+generation, unchanged default fixture, project-owned fixed baseline, existing
+environment-supplied toolchain, no wrappers. Future releases require new authorization.
 Do not introduce `--modules`, custom named modules, module partitions, header units or profiles.
 Do not add `lib`, `header-only`, Homebrew, standalone binaries, self-update or auto-versioning.
 
