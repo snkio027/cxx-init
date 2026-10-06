@@ -39,6 +39,10 @@ def parse_args(argv):
         help="use experimental C++23 import std (verified on macOS + Homebrew LLVM)",
     )
     init_parser.add_argument(
+        "--vcpkg", action="store_true",
+        help="generate an empty, pinned vcpkg manifest and explicit toolchain integration",
+    )
+    init_parser.add_argument(
         "--no-git",
         action="store_true",
         help="do not initialize a local Git repository",
@@ -157,7 +161,39 @@ endif()'''
     shutil.copyfile(Path(__file__).with_name("import_std.md"), root / "README.md")
 
 
-def create_app(name, use_git, import_std=False):
+def enable_vcpkg(root):
+    # Explicit opt-in only: creation neither discovers vcpkg nor downloads ports.
+    manifest = {
+        "builtin-baseline": "434307da09bc05b2c86996dccc8b2351fc0d5d37",
+        "dependencies": [],
+    }
+    (root / "vcpkg.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    presets_path = root / "CMakePresets.json"
+    presets = json.loads(presets_path.read_text(encoding="utf-8"))
+    dev = next(preset for preset in presets["configurePresets"] if preset["name"] == "dev")
+    dev["cacheVariables"]["CMAKE_TOOLCHAIN_FILE"] = "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+    presets_path.write_text(json.dumps(presets, indent=2) + "\n", encoding="utf-8")
+    cmake = root / "CMakeLists.txt"
+    content = cmake.read_text(encoding="utf-8")
+    anchor = "project(robot_runtime LANGUAGES CXX)"
+    if content.count(anchor) != 1:
+        raise GenerationError("vcpkg fixture project anchor is missing or ambiguous")
+    guard = '''if(NOT EXISTS "${CMAKE_TOOLCHAIN_FILE}" OR IS_DIRECTORY "${CMAKE_TOOLCHAIN_FILE}")
+    message(FATAL_ERROR
+        "vcpkg toolchain missing: set VCPKG_ROOT to an existing vcpkg checkout. See README.md")
+endif()
+
+'''
+    cmake.write_text(content.replace(anchor, guard + anchor), encoding="utf-8")
+    provenance = root / ".cxx.toml"
+    provenance.write_text(provenance.read_text() + 'dependency_manager = "vcpkg"\n', encoding="utf-8")
+    readme = root / "README.md"
+    existing = readme.read_text(encoding="utf-8") + "\n" if readme.exists() else ""
+    instructions = Path(__file__).with_name("vcpkg.md").read_text(encoding="utf-8")
+    readme.write_text(existing + instructions, encoding="utf-8")
+
+
+def create_app(name, use_git, import_std=False, vcpkg=False):
     fixture = Path(__file__).resolve().parent / "fixtures" / "canonical-app"
     if not fixture.is_dir():
         raise GenerationError(f"bundled app fixture is missing: {fixture}")
@@ -176,6 +212,8 @@ def create_app(name, use_git, import_std=False):
         )
         if import_std:
             enable_import_std(staging)
+        if vcpkg:
+            enable_vcpkg(staging)
         render_fixture(staging, name, identifier)
 
         if use_git:
@@ -198,7 +236,8 @@ def main(argv=None):
     args = parse_args(argv)
 
     try:
-        destination = create_app(args.name, use_git=not args.no_git, import_std=args.import_std)
+        destination = create_app(args.name, use_git=not args.no_git,
+                                 import_std=args.import_std, vcpkg=args.vcpkg)
     except (GenerationError, OSError) as error:
         print(f"cxx: error: {error}", file=sys.stderr)
         return 1
@@ -207,9 +246,13 @@ def main(argv=None):
     if args.import_std:
         print("Standard library mode: import std [experimental]")
         print("Verified toolchain: macOS + Homebrew LLVM (see README.md)")
+    if args.vcpkg:
+        print("Dependencies: explicit vcpkg manifest (empty; fixed baseline, see README.md)")
     print()
     print("Next:")
     print(f"  cd {args.name}")
+    if args.vcpkg:
+        print('  export VCPKG_ROOT="/path/to/existing/vcpkg"')
     if args.import_std:
         print('  export CXX="$(brew --prefix llvm)/bin/clang++"')
         print('  export CMAKE_CXX_STDLIB_MODULES_JSON="$(brew --prefix llvm)/lib/c++/libc++.modules.json"')

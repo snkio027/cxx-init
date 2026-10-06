@@ -190,9 +190,24 @@ dependencies = none
 
 This is intentional.
 
-vcpkg and Conan may be added later as explicit integrations.
+`cxx init <name> --vcpkg` is an approved explicit integration, not base architecture.
+It composes with `--import-std` without creating a second canonical fixture or a profile engine.
+Default output remains byte-for-byte unchanged. The opt-in adds an empty `vcpkg.json`,
+a documented fixed builtin-registry baseline, the preset's environment-supplied toolchain,
+a configure-time guard and short setup instructions. No libraries are preselected.
 
-They are not base architecture.
+The initial baseline is the tested snapshot `434307da09bc05b2c86996dccc8b2351fc0d5d37`;
+it is a reproducible starting point, not an implicit latest-version policy. The generated
+manifest belongs to the project and baseline updates are explicit project changes.
+`VCPKG_ROOT` selects an already installed toolchain; no machine paths are generated.
+Missing toolchains fail before `project()`, with no silent unmanaged fallback. Package
+restoration may access the network during CMake configure, never during `cxx init`.
+Only CMake target dependencies reach clangd through the compilation database.
+Compiler/triplet/ABI choices remain the project's responsibility; setting `CXX` for the
+application is not a promise that vcpkg will build every dependency with the same compiler.
+
+Conan remains deferred. There are no `cxx add`, dependency update commands, wrapper builds
+or automatic migrations of existing projects.
 
 Domain-native dependency systems remain domain-native:
 
@@ -298,7 +313,6 @@ No automatic project migration is planned for the initial product.
 Do not include these in the first implementation:
 
 ```text
-vcpkg
 Conan
 C++26
 custom C++ named modules, partitions, header units and general module profiles
