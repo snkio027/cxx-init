@@ -73,6 +73,29 @@ The project-local override is a v0.2.1 correction, not a
 retroactive change to that release. Existing import-std projects can set `None` manually;
 upgrading the generator never rewrites existing projects.
 
+## Optional vcpkg integration
+
+```sh
+cxx init demo --vcpkg
+# Or: cxx init demo --import-std --vcpkg
+cd demo
+export VCPKG_ROOT="/path/to/existing/vcpkg"
+cmake --workflow --preset dev
+```
+
+This explicit option generates an empty manifest pinned to the tested registry
+snapshot `434307da09bc05b2c86996dccc8b2351fc0d5d37`, a toolchain preset and a
+configure-time guard. Add the libraries you need using their CMake targets.
+No vcpkg installation, dependency acquisition or toolchain probing happens during
+generation. CMake configure may download/build manifest dependencies; a missing
+toolchain is an error, not an unmanaged fallback. The ordinary command's generated
+files remain byte-for-byte unchanged. Existing projects are never rewritten.
+
+The generated [vcpkg instructions](src/cxx_init/vcpkg.md) describe dependency,
+baseline and compiler/ABI ownership. Combining this option with `--import-std`
+retains the latter's platform and tooling restrictions; it is not broad library
+or Modules portability certification.
+
 ## Generated project workflows
 
 Each workflow configures, builds, and runs CTest:
@@ -146,7 +169,7 @@ ASan / UBSan where supported
 compile_commands.json
 ```
 
-Dependency managers, C++26, custom Modules, ROS, CUDA, benchmarking and fuzzing remain deferred.
+Conan, C++26, custom Modules, ROS, CUDA, benchmarking and fuzzing remain deferred.
 
 ## Repository documents
 

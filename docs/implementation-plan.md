@@ -157,7 +157,6 @@ Evaluate actual personal usage before adding features.
 Potential next additions, only if they solve observed friction:
 
 ```text
-vcpkg profile
 Conan profile
 better inspect command
 release packaging
@@ -183,6 +182,22 @@ diagnostic recovery after buffer repair, and the exception warning in both sourc
 Do not change source exception semantics or interpret static checking as full LSP coverage.
 Keep existing version, fault-wheel, Ubuntu and Trusted Publishing gates. A successful
 Ubuntu headers run must not be described as import-std portability verification.
+
+## Approved DX increment — explicit vcpkg
+
+Implement `--vcpkg` as a fixed specialization of the canonical app fixture, independently
+composable with `--import-std`. Do not change default output, dependency ownership or the
+side-effect boundary. The manifest begins empty with the architecture's tested baseline.
+Generation must succeed without vcpkg installed and without invoking any host probe; a
+missing toolchain must fail clearly at configure. A failed specialization must clean up
+staging without overwriting an existing destination.
+
+Keep generator/default regressions and installed-wheel checks. Opt-in integration checks
+must add a real compiled dependency to a disposable generated project, then verify
+dev/san/release builds, runtime output, CTest, compilation database and actual clangd
+diagnostics. Exercise headers and import-std separately; do not infer combination support
+from two isolated passing features. A test library is not a template dependency. Keep the
+existing release gates and require separate release authorization.
 
 ## v0.1 Definition of Done
 

@@ -86,6 +86,10 @@ existing Ubuntu and Trusted Publishing gates
 ```
 
 Publishing requires explicit release authorization; never bypass failed gates or add credentials.
+The next approved development increment adds only explicit `cxx init <name> --vcpkg`,
+including composition with `--import-std`. It is not authorization to publish a release.
+Update the dependency contract before implementing it: offline generation, unchanged default
+fixture, project-owned fixed baseline, existing environment-supplied toolchain, no wrappers.
 Do not introduce `--modules`, custom named modules, module partitions, header units or profiles.
 Do not add `lib`, `header-only`, Homebrew, standalone binaries, self-update or auto-versioning.
 
