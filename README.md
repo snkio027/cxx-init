@@ -88,6 +88,14 @@ The configure step restores the preset's sanitizer setting even after a manual c
 
 The template fixes the project's editing baseline, including direct-include diagnostics
 for headers projects and the documented import-std exception above.
+Strict missing-include checking applies to `src/`, `include/`, `tests/`, and C/C++ files
+directly in the project root. Other paths (including `build/`, `vendor/`, `third_party/`,
+and `vcpkg_installed/`) do not opt into this check. Extend `.clangd`'s `PathMatch` if
+your own sources live elsewhere; keep dependencies outside those owned-source paths.
+This scopes the file being edited, not diagnostics originating from a library used by
+your source. Library-specific public/internal-header issues still need library annotations
+or a precise project-local workaround. Semantic diagnostics and clang-tidy remain active;
+this policy neither suppresses all third-party errors nor makes internal headers self-contained.
 clangd always uses `build/dev/compile_commands.json`; running `san` or `release` does not switch it.
 Configure `dev` before editing C++ files.
 
@@ -170,12 +178,15 @@ export CLANG_FORMAT="$(brew --prefix llvm)/bin/clang-format"
 export CLANGD="$(brew --prefix llvm)/bin/clangd"
 export CLANG_TIDY="$(brew --prefix llvm)/bin/clang-tidy"
 uv build --no-sources
-CXX_TEST_IMPORT_STD=1 CXX_TEST_DIST="$PWD/dist" CXX_RELEASE_TAG=v0.2.1 \
+CXX_TEST_CLANGD=1 CXX_TEST_IMPORT_STD=1 CXX_TEST_DIST="$PWD/dist" CXX_RELEASE_TAG=v0.2.1 \
   python3 -m unittest discover -s tests -v
 ```
 
 This tests the supplied wheel without rebuilding it. Both modes run all three
 workflows with exact application output and real compilation database checks.
+`CXX_TEST_CLANGD=1` additionally checks owned/third-party missing-include scope,
+direct-include repair, and unsuppressed semantic errors through real LSP diagnostics
+for both checkout-generated and installed-wheel headers projects.
 The import-std path also checks formatting, static `clangd --check`, real LSP diagnostics
 and clang-tidy; only the observed
 libc++ `_Exit` reserved-identifier warning is accepted. Application warnings still fail.

@@ -94,7 +94,12 @@ project documents its version-specific CMake gate and known clangd/clang-tidy li
 Release testing must exercise both paths from an installed wheel on the supported Mac;
 the existing Ubuntu headers release gate does not establish Linux import-std support.
 
-Headers projects retain `Diagnostics.MissingIncludes: Strict`. Import-std projects use
+Headers projects enable `Diagnostics.MissingIncludes: Strict` only for owned paths:
+`src/`, `include/`, `tests/`, and root-level C/C++ files. The compilation database remains
+unconditional. This is a missing-include policy, not blanket suppression of dependency
+diagnostics or support for parsing non-self-contained internal headers. Projects may
+adjust the owned paths or add precise library workarounds without changing build flags.
+Import-std projects use
 `None` because Include Cleaner can incorrectly require textual standard-library headers
 for symbols provided by `import std;`. Only this project-local diagnostic is changed;
 unused-include checking, semantic diagnostics, clang-tidy policy and exception semantics

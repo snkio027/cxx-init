@@ -1,5 +1,9 @@
 CompileFlags:
   CompilationDatabase: build/dev
 
+---
+If:
+  PathMatch: [(src|include|tests)/.*, '[^/]+\.(c|cc|cpp|cxx|h|hh|hpp|hxx|inc)']
+
 Diagnostics:
   MissingIncludes: Strict

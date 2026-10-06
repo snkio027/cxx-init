@@ -8,8 +8,8 @@ import threading
 import time
 
 
-def collect_diagnostics(project, environment, sources):
-    uri = (project / "src/main.cpp").as_uri()
+def collect_diagnostics(project, environment, sources, *, path="src/main.cpp"):
+    uri = (project / path).as_uri()
     messages = queue.Queue()
     with tempfile.TemporaryFile() as log, subprocess.Popen(
         [environment.get("CLANGD", "clangd"), "--enable-config", "--clang-tidy",
