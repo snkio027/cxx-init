@@ -79,11 +79,15 @@ upgrading the generator never rewrites existing projects.
 cxx init demo --vcpkg
 # Or: cxx init demo --import-std --vcpkg
 cd demo
-export VCPKG_ROOT="/path/to/existing/vcpkg"
+# VCPKG_ROOT must point to your existing vcpkg checkout; keep it if already configured.
 cmake --workflow --preset dev
 ```
 
-This explicit option generates an empty manifest pinned to the tested registry
+If `VCPKG_ROOT` is not configured, export it to the **actual absolute path** of your
+existing vcpkg checkout before running CMake. Do not replace a working value with
+a placeholder path. The checkout must contain `scripts/buildsystems/vcpkg.cmake`.
+
+This explicit option generates an empty manifest with a fixed builtin-registry
 snapshot `434307da09bc05b2c86996dccc8b2351fc0d5d37`, a toolchain preset and a
 configure-time guard. Add the libraries you need using their CMake targets.
 No vcpkg installation, dependency acquisition or toolchain probing happens during

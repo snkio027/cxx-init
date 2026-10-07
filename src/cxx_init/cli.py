@@ -27,20 +27,48 @@ class GenerationError(Exception):
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         prog="cxx",
-        description="Create a clean, native C++ project.",
+        description="Create a C++23 executable project using CMake, Ninja and CTest.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Examples (options belong to init):
+  cxx init demo                     # headers, no dependencies, local Git repo
+  cxx init demo --vcpkg              # opt into an empty vcpkg manifest
+  cxx init demo --import-std         # experimental C++23 import std
+  cxx init demo --no-git             # skip local git init
+  cxx init demo --vcpkg --import-std  # options can be combined
+
+Run cxx init --help for all options and build prerequisites.
+Generation is offline; building and dependency installation are separate steps.""",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    init_parser = commands.add_parser("init", help="create an executable project")
-    init_parser.add_argument("name", help="project name: [a-z][a-z0-9-]*")
+    init_parser = commands.add_parser(
+        "init", help="create a C++23 executable project",
+        description="Create ./<name>, a new or empty directory.\nDefaults: C++23 with "
+                    "headers, no dependencies, and a local Git repository.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Example:
+  cxx init demo
+  cd demo
+  cmake --workflow --preset dev
+
+Build prerequisites: CMake >= 3.25, Ninja and a C++23 compiler.
+--vcpkg requires VCPKG_ROOT to point to an existing vcpkg checkout at configure time.
+--import-std requires CMake 4.4 and macOS + Homebrew LLVM/libc++; set CXX and
+CMAKE_CXX_STDLIB_MODULES_JSON as described in the generated README.md.
+Generation does not install tools, download dependencies or build the project.""",
+    )
+    init_parser.add_argument(
+        "name", help="directory name: [a-z][a-z0-9-]*; reserved CMake targets excluded",
+    )
     init_parser.add_argument(
         "--import-std", action="store_true",
         help="use experimental C++23 import std (verified on macOS + Homebrew LLVM)",
     )
     init_parser.add_argument(
         "--vcpkg", action="store_true",
-        help="generate an empty, pinned vcpkg manifest and explicit toolchain integration",
+        help="generate an empty dependency manifest with a fixed registry baseline "
+             "and vcpkg toolchain integration (does not install vcpkg)",
     )
     init_parser.add_argument(
         "--no-git",
@@ -252,7 +280,8 @@ def main(argv=None):
     print("Next:")
     print(f"  cd {args.name}")
     if args.vcpkg:
-        print('  export VCPKG_ROOT="/path/to/existing/vcpkg"')
+        print("  # VCPKG_ROOT must point to your existing vcpkg checkout.")
+        print("  # Keep it if already configured; otherwise set it first (see README.md).")
     if args.import_std:
         print('  export CXX="$(brew --prefix llvm)/bin/clang++"')
         print('  export CMAKE_CXX_STDLIB_MODULES_JSON="$(brew --prefix llvm)/lib/c++/libc++.modules.json"')
