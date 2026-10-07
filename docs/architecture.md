@@ -103,6 +103,12 @@ AppleClang
 MSVC
 ```
 
+The approved starter-output update uses C++23 `std::println` (`<print>` in the
+headers path, the same call through `import std` in the opt-in path). Its standard
+library must provide formatted output; language-mode support alone is insufficient.
+This does not add a dependency, fallback, host probe or entry-point exception handler.
+The existing exception-escape check remains active and may warn on the starter's `main`.
+
 ## 4. Build truth
 
 ### Standard-library module adoption (v0.2)

@@ -15,6 +15,14 @@ def verify_headers_diagnostics(test, project, environment):
     config = project / ".clangd"
     original = config.read_text()
     test.assertTrue(original.startswith("CompileFlags:\n  CompilationDatabase: build/dev\n\n---\n"))
+    source = (project / "src/main.cpp").read_text()
+    normal, broken, restored = collect_diagnostics(project, environment, [
+        source, source.replace("return 0;", "return cxx_missing_symbol;"), source,
+    ])
+    for diagnostics in (normal, restored):
+        test.assertEqual(diagnostics, [])
+    test.assertTrue(any(item.get("severity") == 1 and "cxx_missing_symbol" in item["message"]
+                        for item in broken), broken)
     indirect = '#include "bridge.hpp"\nProbeValue probe_value;\n'
     direct = '#include "value.hpp"\nProbeValue probe_value;\n'
     cases = (

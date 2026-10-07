@@ -37,6 +37,7 @@ class CxxTests(unittest.TestCase):
                     self.assertIn("C++23", result.stdout)
                     self.assertEqual(list(workspace.iterdir()), [])
                     if arguments[0] == "init":
+                        self.assertIn("std::println", result.stdout)
                         self.assertIn("VCPKG_ROOT", result.stdout)
                         self.assertIn("existing vcpkg checkout", result.stdout)
                         self.assertIn("fixed registry baseline", " ".join(result.stdout.split()))
@@ -77,7 +78,10 @@ class CxxTests(unittest.TestCase):
             self.assertFalse((project / "tests").exists())
             self.assertFalse((project / ".git").exists())
             self.assertIn("project(sensor_hub LANGUAGES CXX)", (project / "CMakeLists.txt").read_text())
-            self.assertIn("Hello from sensor-hub!", (project / "src" / "main.cpp").read_text())
+            self.assertEqual((project / "src/main.cpp").read_text(),
+                             '#include <print>\n\nint main() {\n'
+                             '    std::println("Hello from sensor-hub!");\n'
+                             '    return 0;\n}\n')
             self.assertEqual(
                 (project / ".cxx.toml").read_text(),
                 'schema = 1\ntemplate = "app"\nlanguage = "c++23"\n',

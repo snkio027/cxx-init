@@ -23,6 +23,8 @@ cmake --workflow --preset dev
 ```
 
 The generated project uses normal C++ tooling directly and does not depend on `cxx` after creation.
+Its starter uses `<print>` and `std::println("Hello from hello!")`; the output
+still ends with exactly one newline. `--import-std` uses the same call via `import std;`.
 
 Upgrade or uninstall the tool with:
 
@@ -34,7 +36,13 @@ uv tool uninstall cxx-init
 ## Requirements
 
 `cxx` requires Python 3.10 or newer. Generated projects require CMake 3.25 or newer,
-Ninja, and a C++23 compiler.
+Ninja, and a C++23 compiler/standard library providing `<print>` and `std::println`.
+For example, [libc++ 18+](https://libcxx.llvm.org/Status/Cxx23.html) and
+[libstdc++ 14+](https://gcc.gnu.org/gcc-14/changes.html) provide formatted output;
+selecting `-std=c++23` alone does not add missing standard-library features.
+The Ubuntu release gate explicitly selects the runner's preinstalled `g++-14`.
+Older standard libraries are not given an iostream fallback. Windows toolchains
+remain unverified; GCC 14 on Windows additionally requires `-lstdc++exp`.
 
 ## Experimental standard-library import
 
@@ -271,12 +279,13 @@ workflows with exact application output and real compilation database checks.
 direct-include repair, and unsuppressed semantic errors through real LSP diagnostics
 for both checkout-generated and installed-wheel headers projects.
 The import-std path also checks formatting, static `clangd --check`, real LSP diagnostics
-and clang-tidy; only the observed
-libc++ `_Exit` reserved-identifier warning is accepted. Application warnings still fail.
-The LSP regression separately introduces `std::println` in unsaved buffers to verify that
-the shared exception warning remains active in both module and header forms; it does not
-rewrite the generated app or weaken the command-line clang-tidy gate.
-The unchanged Ubuntu publishing workflow verifies the headers path; it does not
+and clang-tidy. The import-std starter retains the existing `bugprone-exception-escape`
+warning on `main`; no catch-all or suppression is generated. Its gate requires that
+specific warning (and the LSP call-site note), rejects unrelated diagnostics and separately
+classifies the observed libc++ `_Exit` reserved-identifier warning. Real LSP tests cover
+the generated source, semantic-error injection and recovery in both source forms; the
+headers LSP path is checked independently and produces no diagnostics in this environment.
+The Ubuntu publishing workflow verifies the headers path with GCC 14; it does not
 claim Linux import-std support. Do not release without the separate Mac gate.
 
 ### Tooling acceptance boundaries

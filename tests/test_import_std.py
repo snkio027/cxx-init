@@ -12,6 +12,17 @@ from test_cxx import CLI, run_cxx
 from clangd_lsp import collect_diagnostics
 
 
+def assert_println_diagnostics(test, diagnostics):
+    # clangd publishes the warning and its call-site note as separate diagnostics.
+    test.assertEqual(len(diagnostics), 2, diagnostics)
+    warning, note = diagnostics
+    test.assertEqual((warning.get("code"), warning.get("severity")),
+                     ("bugprone-exception-escape", 2), diagnostics)
+    test.assertIn("'main'", warning["message"])
+    test.assertEqual((note.get("code"), note.get("severity")), (None, 3), diagnostics)
+    test.assertIn("function 'main' calls function 'println<>' here", note["message"])
+
+
 def verify_import_std_diagnostics(test, project, environment):
     """Check real publishDiagnostics, independently of the static --check smoke test."""
     path = project / "src/main.cpp"
@@ -24,8 +35,8 @@ def verify_import_std_diagnostics(test, project, environment):
     normal, exception, broken, restored = collect_diagnostics(
         project, environment, [source, println, invalid, source],
     )
-    test.assertEqual(normal, [])
-    test.assertEqual(restored, [])
+    for diagnostics in (normal, restored):
+        assert_println_diagnostics(test, diagnostics)
     test.assertNotIn("missing-includes", {item.get("code") for item in exception})
     test.assertIn("bugprone-exception-escape", {item.get("code") for item in exception})
     test.assertFalse(any(item.get("severity") == 1 for item in exception), exception)
@@ -89,15 +100,36 @@ def verify_import_std_project(test, project, environment):
     verify_import_std_diagnostics(test, project, environment)
     tidy = run([environment.get("CLANG_TIDY", "clang-tidy"), "src/main.cpp",
                 "-p", "build/dev", "--config-file=.clang-tidy"])
-    # Do not suppress checks: only the observed libc++ module diagnostic is allowed.
+    # Keep checks enabled; require the starter's known exception warning and
+    # reject all other application warnings. libc++ module noise stays separate.
     warnings = re.findall(r"^.+:\d+:\d+: warning: .+$", tidy.stdout + tidy.stderr, re.M)
+    application = []
     for warning in warnings:
+        if warning.startswith(str(project / "src/main.cpp") + ":"):
+            test.assertIn("'main'", warning)
+            test.assertTrue(warning.endswith("[bugprone-exception-escape]"), warning)
+            application.append(warning)
+            continue
         test.assertIn("/std/cstdlib.inc:", warning, tidy.stdout + tidy.stderr)
         test.assertIn("'_Exit'", warning)
         test.assertIn("[bugprone-reserved-identifier]", warning)
+    test.assertEqual(len(application), 1, tidy.stdout + tidy.stderr)
 
 
 class ImportStdTests(unittest.TestCase):
+    def test_println_diagnostics_reject_unrelated_or_missing_warnings(self):
+        warning = {"code": "bugprone-exception-escape", "severity": 2,
+                   "message": "an exception may escape from function 'main'"}
+        note = {"severity": 3, "message": "function 'main' calls function 'println<>' here"}
+        assert_println_diagnostics(self, [warning, note])
+        for diagnostics in ([], [warning], [warning, note, note],
+                            [{**warning, "code": "missing-includes"}, note],
+                            [{**warning, "severity": 1}, note],
+                            [{**warning, "message": "exception from 'other'"}, note],
+                            [warning, {**note, "message": "unrelated diagnostic"}]):
+            with self.subTest(diagnostics=diagnostics), self.assertRaises(AssertionError):
+                assert_println_diagnostics(self, diagnostics)
+
     def test_shared_fixture_and_explicit_experimental_output(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -130,7 +162,7 @@ class ImportStdTests(unittest.TestCase):
             self.assertTrue(source.startswith("import std;\n"))
             self.assertNotIn("#include", source)
             self.assertEqual(source, (headers / "src/main.cpp").read_text()
-                             .replace("#include <iostream>", "import std;")
+                             .replace("#include <print>", "import std;")
                              .replace("headers-demo", "std-demo"))
             self.assertIn('stdlib = "import-std"', (modules / ".cxx.toml").read_text())
             for path in modules.rglob("*"):

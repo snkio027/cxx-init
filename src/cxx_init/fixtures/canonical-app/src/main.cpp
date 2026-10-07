@@ -1,6 +1,6 @@
-#include <iostream>
+#include <print>
 
 int main() {
-    std::cout << "Hello from robot-runtime!\n";
+    std::println("Hello from robot-runtime!");
     return 0;
 }
