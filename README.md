@@ -121,6 +121,60 @@ Each workflow configures, builds, and runs CTest:
 The configure step restores the preset's sanitizer setting even after a manual cache override.
 `release` is a local optimized build, not a packaging or publishing command.
 
+### Terminal summary (v0.4.0)
+
+Run from an existing project root:
+
+```sh
+cxx workflow dev
+cxx workflow san
+cxx workflow dev --verbose
+```
+
+This optional view executes exactly one `cmake --workflow --preset <preset>`.
+CMake still owns presets, compilers, dependency installation, step ordering and
+failure stopping. It does not rewrite projects or replace the native command.
+Available starting with 0.4.0; earlier releases do not include this entry.
+
+Example of the completed terminal view (timings vary):
+
+```text
+  demo / dev
+
+  ✓ Configure      2.9s
+  ✓ Build          0.0s  up to date
+  ✓ Test           0.0s  1/1 passed
+
+  PASS  3.0s
+```
+
+- The English UI uses a single live progress row and one permanent row per completed
+  stage. Color is limited to status; timing and log paths are secondary. Different
+  step preset names remain visible. Raw tool output is not translated.
+- Redirected output, `NO_COLOR`, and `TERM=dumb` use append-only start/finish lines,
+  without presentation escape sequences. `--verbose` also uses append-only output.
+- Stderr is always shown; common stdout warnings/errors/notes retain nearby context.
+  Unrecognized localized diagnostics may appear only in logs; use `--verbose` to
+  stream all output. Diagnostics are never overwritten by the live progress row.
+- Each run keeps complete raw bytes in separate `stdout.log` and `stderr.log` files.
+  Successful summary runs omit the log path; failures, cancellation and `--verbose`
+  show it. To locate a successful run's retained logs without rerunning the workflow,
+  look under the system temporary directory for `cxx-workflow-*`.
+  The OS may clean temporary directories; copy logs if needed and inspect them
+  before sharing, as they may contain paths or program data. Failures also show the
+  last 40 lines/fragments, the exact command and the native nonzero exit code.
+- Ctrl-C returns 130 and cleans up the workflow's POSIX process group. Windows
+  guarantees only direct-child termination.
+- Stage times use received output boundaries and can be affected by child buffering;
+  total time is measured directly. Unknown output formats do not change execution
+  or exit status, and full output remains available in logs.
+- This is not `cxx run`: CTest still controls successful test output. Run application
+  executables directly or use Neovim's build/run entries for normal application use.
+
+For source-only edits, use `cmake --build --preset dev`, followed by `ctest --preset dev`
+when needed. A full workflow still configures; this view does not skip dependency
+checks to appear faster.
+
 The template fixes the project's editing baseline, including direct-include diagnostics
 for headers projects and the documented import-std exception above.
 Strict missing-include checking applies to `src/`, `include/`, `tests/`, and C/C++ files
@@ -152,7 +206,7 @@ clangd as well. Project style and diagnostic preferences remain fixed in the tem
 2. Small, readable implementation.
 3. Minimal generated files.
 4. No hidden host mutation.
-5. No build-system wrapper.
+5. No duplicate build policy; optional native-workflow presentation only.
 6. No network requirement during project creation.
 7. Prefer boring, inspectable code over framework-heavy abstractions.
 
@@ -203,7 +257,7 @@ Run the black-box test suite with:
 python3 -m unittest discover -s tests -v
 ```
 
-For the v0.3.1 release gate on the verified Mac toolchain, explicitly enable the
+For the v0.4.1 release gate on the verified Mac toolchain, explicitly enable the
 import-std and vcpkg artifact tests (otherwise they are reported as skipped, not verified).
 `VCPKG_ROOT` must point to the existing tested vcpkg checkout:
 
@@ -215,7 +269,7 @@ export CLANGD="$(brew --prefix llvm)/bin/clangd"
 export CLANG_TIDY="$(brew --prefix llvm)/bin/clang-tidy"
 uv build --no-sources
 CXX_TEST_CLANGD=1 CXX_TEST_IMPORT_STD=1 CXX_TEST_VCPKG=1 \
-CXX_TEST_DIST="$PWD/dist" CXX_RELEASE_TAG=v0.3.1 \
+CXX_TEST_DIST="$PWD/dist" CXX_RELEASE_TAG=v0.4.1 \
   python3 -m unittest discover -s tests -v
 ```
 

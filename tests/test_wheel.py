@@ -31,7 +31,7 @@ class WheelReleaseTests(unittest.TestCase):
         cls.addClassCleanup(temporary.cleanup)
         root = Path(temporary.name)
         supplied_dist = os.environ.get("CXX_TEST_DIST")
-        cls.tag = os.environ["CXX_RELEASE_TAG"] if supplied_dist is not None else "v0.3.1"
+        cls.tag = os.environ["CXX_RELEASE_TAG"] if supplied_dist is not None else "v0.4.1"
         cls.dist = Path(supplied_dist).resolve() if supplied_dist is not None else root / "dist"
         if supplied_dist is None:
             # Requires uv with a bundled backend compatible with pyproject.toml.
@@ -76,6 +76,7 @@ class WheelReleaseTests(unittest.TestCase):
                     "UV_OFFLINE": "1",
                     "UV_TOOL_BIN_DIR": str(root / "bin"),
                     "UV_TOOL_DIR": str(root / "tools"),
+                    "TMPDIR": str(root),
                 }
             )
 
@@ -138,6 +139,10 @@ class WheelReleaseTests(unittest.TestCase):
 
             for preset in ("dev", "san", "release"):
                 self.run_checked(["cmake", "--workflow", "--preset", preset], cwd=project)
+                summary = self.run_checked([str(executable), "workflow", preset], cwd=project, env=environment)
+                self.assertIn("PASS", summary.stdout)
+                self.assertNotIn("exit 0", summary.stdout)
+                self.assertNotIn("Logs     ", summary.stdout)
                 app = project / "build" / preset / (
                     "release_smoke.exe" if os.name == "nt" else "release_smoke"
                 )
@@ -188,6 +193,7 @@ class WheelReleaseTests(unittest.TestCase):
         self.assertIn(dist_info + "licenses/LICENSE", wheel_files)
         self.assertIn("cxx_init/import_std.md", wheel_files)
         self.assertIn("cxx_init/vcpkg.md", wheel_files)
+        self.assertIn("cxx_init/workflow.py", wheel_files)
         self.assertIn("License-Expression: MIT\n", metadata)
         self.assertIn("Requires-Python: >=3.10\n", metadata)
         self.assertNotIn("Requires-Dist:", metadata)
@@ -206,7 +212,7 @@ class WheelReleaseTests(unittest.TestCase):
         self.assertIn(source_prefix + "src/cxx_init/vcpkg.md", source_files)
 
     def test_gate_rejects_tags_without_v_and_mismatched_versions(self):
-        for tag, message in (("0.3.1", "must start with v"),
+        for tag, message in (("0.4.1", "must start with v"),
                              ("v9.9.9", "distribution version differs from tag")):
             with self.subTest(tag=tag), self.assertRaisesRegex(AssertionError, message):
                 self.verify_wheel(self.wheel, tag)
