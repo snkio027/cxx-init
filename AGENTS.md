@@ -63,8 +63,9 @@ If not, defer it.
 
 ## Current scope
 
-The current authorized release is v0.3.0, carrying owned-source missing-include
-diagnostics and explicit vcpkg integration. The experimental module capability remains limited to:
+The current authorized release is v0.3.1, clarifying CLI options and vcpkg setup
+guidance without changing generated projects or dependency ownership. The experimental
+module capability remains limited to:
 
 ```text
 experimental cxx init <name> --import-std
