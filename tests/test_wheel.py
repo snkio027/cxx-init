@@ -115,6 +115,9 @@ class WheelReleaseTests(unittest.TestCase):
             self.assertIn("Created C++ project: release-smoke", generation.stdout)
 
             project = workspace / "release-smoke"
+            source = (project / "src/main.cpp").read_text()
+            self.assertIn("std::println(", source, "generated app must use std::println")
+            self.assertIn("import std;" if import_std else "#include <print>", source.splitlines())
             self.assertTrue((project / ".git").is_dir())
             self.assertEqual(
                 (project / ".cxx.toml").read_text(),
@@ -225,6 +228,11 @@ class WheelReleaseTests(unittest.TestCase):
              "CLI version differs from tag"),
             ("exit", fixture, "return 0;", "return 42;", r"release_smoke\.smoke[^\n]*\*\*\*Failed"),
             ("output", fixture, "Hello from", "Goodbye from", "unexpected app output"),
+            ("cout", fixture, source,
+             source.replace("#include <print>", "#include <iostream>").replace(
+                 'std::println("Hello from robot-runtime!");',
+                 'std::cout << "Hello from robot-runtime!\\n";'),
+             "generated app must use std::println"),
             ("undefined", fixture, source, overflow, "runtime error: signed integer overflow"),
         )
         for case, path, old, new, message in cases:

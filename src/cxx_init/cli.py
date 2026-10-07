@@ -52,7 +52,8 @@ Generation is offline; building and dependency installation are separate steps."
   cd demo
   cmake --workflow --preset dev
 
-Build prerequisites: CMake >= 3.25, Ninja and a C++23 compiler.
+Build prerequisites: CMake >= 3.25, Ninja and a C++23 compiler/standard library
+with <print> and std::println support.
 --vcpkg requires VCPKG_ROOT to point to an existing vcpkg checkout at configure time.
 --import-std requires CMake 4.4 and macOS + Homebrew LLVM/libc++; set CXX and
 CMAKE_CXX_STDLIB_MODULES_JSON as described in the generated README.md.
@@ -168,7 +169,7 @@ endif()'''
          "project(robot_runtime LANGUAGES CXX)", prefix),
         ("CMakeLists.txt", "PROPERTIES CXX_EXTENSIONS OFF)",
          "PROPERTIES CXX_EXTENSIONS OFF CXX_MODULE_STD ON)"),
-        ("src/main.cpp", "#include <iostream>", "import std;"),
+        ("src/main.cpp", "#include <print>", "import std;"),
         (".clangd", "MissingIncludes: Strict", "MissingIncludes: None"),
     )
     for filename, old, new in changes:

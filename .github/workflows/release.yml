@@ -7,7 +7,7 @@ on:
 jobs:
   build:
     name: Build and verify distributions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
 
@@ -26,6 +26,8 @@ jobs:
 
       - name: Verify the wheel
         env:
+          # Ubuntu 24.04's default GCC 13 has no <print>; GCC 14 is preinstalled.
+          CXX: g++-14
           # Test the distributions uploaded below; do not build a second wheel.
           CXX_TEST_DIST: ${{ github.workspace }}/dist
           CXX_RELEASE_TAG: ${{ github.ref_name }}
