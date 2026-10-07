@@ -72,8 +72,9 @@ presets, add a runner or alter generated projects.
 Preserve warnings, native nonzero exits, raw logs and a usable non-TTY mode.
 
 The owner subsequently authorized merge, publication and local activation on
-2026-10-07. The current authorized release is v0.4.0, adding the English native
-workflow summary without changing generated projects, dependencies or init behavior.
+2026-10-07. On 2026-10-08 the owner authorized v0.4.1 publication and local
+activation: successful workflows omit log paths; failure, cancellation and verbose
+output retain them. Generated projects, dependencies and init behavior stay unchanged.
 Local activation upgrades only cxx-init; it does not upgrade the host toolchain.
 The experimental
 module capability remains limited to:

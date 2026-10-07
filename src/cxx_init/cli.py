@@ -17,7 +17,7 @@ RESERVED_TARGETS = {
 FIXTURE_NAME = "robot-runtime"
 FIXTURE_IDENTIFIER = "robot_runtime"
 LOCAL_FIXTURE_ENTRIES = ("build", "CMakeUserPresets.json", ".DS_Store", ".idea", ".vscode")
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 
 
 class GenerationError(Exception):

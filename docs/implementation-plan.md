@@ -235,3 +235,7 @@ The initial increment stopped before merge/publication. On 2026-10-07 the owner
 subsequently authorized merge, v0.4.0 publication and local cxx-init activation.
 Run the complete Mac release gate and existing Ubuntu/Trusted Publishing workflow;
 do not change generated projects or upgrade unrelated host tools.
+
+On 2026-10-08 the owner authorized v0.4.1: omit log paths on ordinary success,
+retaining raw logs and their location on failure, cancellation or verbose output.
+Use the same complete release gates before publication and targeted local activation.
