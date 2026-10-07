@@ -231,4 +231,7 @@ output, raw logs, and installed-wheel invocation. Compare against native CMake o
 real generated project, including inherited presets and native failure stopping.
 Check English output and real PTY scrollback at normal/narrow widths, including
 diagnostics during progress, verbose mode, NO_COLOR and TERM=dumb fallbacks.
-This increment does not authorize a version bump, publication, host install or merge.
+The initial increment stopped before merge/publication. On 2026-10-07 the owner
+subsequently authorized merge, v0.4.0 publication and local cxx-init activation.
+Run the complete Mac release gate and existing Ubuntu/Trusted Publishing workflow;
+do not change generated projects or upgrade unrelated host tools.
