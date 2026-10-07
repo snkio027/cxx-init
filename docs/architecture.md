@@ -1,13 +1,14 @@
 # cxx-init Architecture
 
-**Status:** Initial implementation baseline  
+**Status:** Bootstrap baseline with approved workflow presentation (2026-10-07)
 **Purpose:** Personal Modern C++ project bootstrap
 
 ## 1. Product definition
 
-The `cxx-init` repository ships `cxx`, a small offline scaffolder.
+The `cxx-init` repository ships `cxx`, a small offline scaffolder with an optional
+native-workflow presentation entry.
 
-Its job is:
+The job of `cxx init` remains:
 
 ```text
 inputs
@@ -17,7 +18,8 @@ inputs
 
 The generated project then uses normal native tooling directly.
 
-`cxx` is not a build system, package manager, environment manager or project runtime.
+`cxx` is not a build system, package manager or environment manager. Projects remain
+independent of it after generation.
 
 ## 2. Desired UX
 
@@ -37,6 +39,38 @@ ctest --preset dev
 ```
 
 There should be no `cxx build` abstraction.
+
+### Approved exception: terminal workflow presentation
+
+On 2026-10-07 the owner approved `cxx workflow <preset> [--verbose]` in response
+to repeated dependency/configure noise obscuring the result of real daily builds.
+This is an explicit amendment to the original no-wrapper rule, not permission
+to introduce separate build/test/run/dependency commands.
+
+The entry launches exactly one `cmake --workflow --preset <preset>` process in
+the current directory, with the inherited environment. CMake alone loads/includes
+presets, expands macros, chooses tools, orders steps, stops on failure and installs
+manifest dependencies when its configured toolchain requires it. The entry must
+not read/reimplement presets or change flags, targets, project files or templates.
+
+Only these effects are added: concise stage/timing/result presentation, raw stdout
+and stderr logs in a unique private temporary directory, and cancellation cleanup.
+Presentation recognizes native stage markers opportunistically; an unknown output
+format must not change execution or the final verdict. Only the native process
+exit status decides success. Nonzero exits propagate; signals use 128 + signal.
+Stage times reflect observed output boundaries, not compiler profiling measurements.
+
+The presentation language is English; native tool output is not translated. A capable
+TTY uses one width-bounded live row, cleared before diagnostics, and leaves one row
+per completed stage. Verbose, redirected, NO_COLOR and dumb-terminal output are
+append-only. Success omits redundant command/exit-zero text; logs remain discoverable.
+
+Stderr is always visible; common stdout diagnostics retain nearby context.
+`--verbose` streams everything. Unknown/localized stdout diagnostics remain in the
+raw logs and may require verbose mode. TTY status colors respect NO_COLOR; non-TTY
+output has no presentation escape sequences. Cancellation forwards to the POSIX
+process group and bounds cleanup; Windows only guarantees direct-child termination.
+This is a workflow view, not an interactive application runner or a PTY replacement.
 
 ## 3. Base generated project
 
@@ -206,8 +240,9 @@ Only CMake target dependencies reach clangd through the compilation database.
 Compiler/triplet/ABI choices remain the project's responsibility; setting `CXX` for the
 application is not a promise that vcpkg will build every dependency with the same compiler.
 
-Conan remains deferred. There are no `cxx add`, dependency update commands, wrapper builds
-or automatic migrations of existing projects.
+Conan remains deferred. There are no `cxx add`, dependency update commands, separate
+build wrappers or automatic migrations. Optional workflow presentation does not
+create another dependency owner.
 
 Domain-native dependency systems remain domain-native:
 
@@ -257,7 +292,9 @@ wheel / source distribution
 Runtime dependencies remain empty. `uv_build` is a build dependency only.
 
 The wheel must contain the canonical fixture so project creation remains offline after installation.
-Network access belongs to installation and upgrade, never to `cxx init`.
+Package downloads belong to installation and upgrade, never to `cxx init`.
+An explicitly invoked workflow may access the network through the project's native
+CMake/toolchain steps; the presentation layer does not initiate downloads itself.
 
 The initial distribution does not include standalone binaries, Homebrew packaging, an installer
 script, self-update or automatic version management.
@@ -339,7 +376,7 @@ A proposed feature should normally be rejected or deferred if it:
 - mutates the host;
 - requires the network for project creation;
 - makes every generated project larger for a niche use case;
-- turns `cxx` into a wrapper around CMake/CTest/package managers;
+- adds execution policy beyond the approved native-workflow presentation entry;
 - exists only for hypothetical future extensibility.
 
 The central rule is:

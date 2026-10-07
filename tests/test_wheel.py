@@ -76,6 +76,7 @@ class WheelReleaseTests(unittest.TestCase):
                     "UV_OFFLINE": "1",
                     "UV_TOOL_BIN_DIR": str(root / "bin"),
                     "UV_TOOL_DIR": str(root / "tools"),
+                    "TMPDIR": str(root),
                 }
             )
 
@@ -135,6 +136,10 @@ class WheelReleaseTests(unittest.TestCase):
 
             for preset in ("dev", "san", "release"):
                 self.run_checked(["cmake", "--workflow", "--preset", preset], cwd=project)
+                summary = self.run_checked([str(executable), "workflow", preset], cwd=project, env=environment)
+                self.assertIn("PASS", summary.stdout)
+                self.assertNotIn("exit 0", summary.stdout)
+                self.assertIn("Logs     ", summary.stdout)
                 app = project / "build" / preset / (
                     "release_smoke.exe" if os.name == "nt" else "release_smoke"
                 )
@@ -185,6 +190,7 @@ class WheelReleaseTests(unittest.TestCase):
         self.assertIn(dist_info + "licenses/LICENSE", wheel_files)
         self.assertIn("cxx_init/import_std.md", wheel_files)
         self.assertIn("cxx_init/vcpkg.md", wheel_files)
+        self.assertIn("cxx_init/workflow.py", wheel_files)
         self.assertIn("License-Expression: MIT\n", metadata)
         self.assertIn("Requires-Python: >=3.10\n", metadata)
         self.assertNotIn("Requires-Dist:", metadata)

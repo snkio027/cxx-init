@@ -113,6 +113,58 @@ Each workflow configures, builds, and runs CTest:
 The configure step restores the preset's sanitizer setting even after a manual cache override.
 `release` is a local optimized build, not a packaging or publishing command.
 
+### Terminal summary (unreleased)
+
+Run from an existing project root:
+
+```sh
+cxx workflow dev
+cxx workflow san
+cxx workflow dev --verbose
+```
+
+This optional view executes exactly one `cmake --workflow --preset <preset>`.
+CMake still owns presets, compilers, dependency installation, step ordering and
+failure stopping. It does not rewrite projects or replace the native command.
+The published 0.3.1 release does not include this entry yet.
+
+Example of the completed terminal view (timings vary):
+
+```text
+  demo / dev
+
+  ✓ Configure      2.9s
+  ✓ Build          0.0s  up to date
+  ✓ Test           0.0s  1/1 passed
+
+  PASS  3.0s
+  Logs     <temporary directory>/cxx-workflow-<unique ID>
+```
+
+- The English UI uses a single live progress row and one permanent row per completed
+  stage. Color is limited to status; timing and log paths are secondary. Different
+  step preset names remain visible. Raw tool output is not translated.
+- Redirected output, `NO_COLOR`, and `TERM=dumb` use append-only start/finish lines,
+  without presentation escape sequences. `--verbose` also uses append-only output.
+- Stderr is always shown; common stdout warnings/errors/notes retain nearby context.
+  Unrecognized localized diagnostics may appear only in logs; use `--verbose` to
+  stream all output. Diagnostics are never overwritten by the live progress row.
+- Each run keeps complete raw bytes in separate `stdout.log` and `stderr.log` files.
+  The OS may clean temporary directories; copy logs if needed and inspect them
+  before sharing, as they may contain paths or program data. Failures also show the
+  last 40 lines/fragments, the exact command and the native nonzero exit code.
+- Ctrl-C returns 130 and cleans up the workflow's POSIX process group. Windows
+  guarantees only direct-child termination.
+- Stage times use received output boundaries and can be affected by child buffering;
+  total time is measured directly. Unknown output formats do not change execution
+  or exit status, and full output remains available in logs.
+- This is not `cxx run`: CTest still controls successful test output. Run application
+  executables directly or use Neovim's build/run entries for normal application use.
+
+For source-only edits, use `cmake --build --preset dev`, followed by `ctest --preset dev`
+when needed. A full workflow still configures; this view does not skip dependency
+checks to appear faster.
+
 The template fixes the project's editing baseline, including direct-include diagnostics
 for headers projects and the documented import-std exception above.
 Strict missing-include checking applies to `src/`, `include/`, `tests/`, and C/C++ files
@@ -144,7 +196,7 @@ clangd as well. Project style and diagnostic preferences remain fixed in the tem
 2. Small, readable implementation.
 3. Minimal generated files.
 4. No hidden host mutation.
-5. No build-system wrapper.
+5. No duplicate build policy; optional native-workflow presentation only.
 6. No network requirement during project creation.
 7. Prefer boring, inspectable code over framework-heavy abstractions.
 

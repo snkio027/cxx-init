@@ -216,3 +216,19 @@ works predictably, the generated project is pleasant to edit, and the implementa
 The goal is not feature count.
 
 The goal is removing repetitive C++ project setup without creating a new layer of tooling complexity.
+
+## Approved DX increment — workflow presentation (2026-10-07)
+
+Add only `cxx workflow <preset> [--verbose]`, delegating to a single native CMake
+workflow. Keep generated projects, preset ownership, dependencies and init output
+unchanged. Show stage progress, observed durations, native status, and raw log paths.
+Retain stderr, stdout warning context, a verbose escape hatch, and plain non-TTY output.
+
+Verify actual execution, not screenshots alone: native invocation/cwd/environment,
+successful/no-op builds, warnings, configure/build/test failures, missing tools or
+presets, arbitrary nonzero exits, cancellation/descendant cleanup, large and partial
+output, raw logs, and installed-wheel invocation. Compare against native CMake on a
+real generated project, including inherited presets and native failure stopping.
+Check English output and real PTY scrollback at normal/narrow widths, including
+diagnostics during progress, verbose mode, NO_COLOR and TERM=dumb fallbacks.
+This increment does not authorize a version bump, publication, host install or merge.
