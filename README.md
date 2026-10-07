@@ -113,6 +113,50 @@ Each workflow configures, builds, and runs CTest:
 The configure step restores the preset's sanitizer setting even after a manual cache override.
 `release` is a local optimized build, not a packaging or publishing command.
 
+### 终端摘要视图（开发中，尚未发布）
+
+在已有项目根目录运行：
+
+```sh
+cxx workflow dev
+cxx workflow san
+cxx workflow dev --verbose
+```
+
+这是可选的展示入口：内部仍只执行 `cmake --workflow --preset <preset>`。
+预设、编译器、依赖安装、步骤顺序和失败停止全部由 CMake 决定；不会重写项目，
+也不会替代原生命令。当前已发布的 0.3.1 尚无此入口。
+
+默认效果示意（耗时来自实际运行，这里仅为示例）：
+
+```text
+demo · dev
+  → [1/3] 配置 · dev
+  ✓ [1/3] 配置 · dev  2.9s
+  → [2/3] 构建 · dev
+  ✓ [2/3] 构建 · dev  0.0s · 无需重新编译
+  → [3/3] 测试 · dev
+  ✓ [3/3] 测试 · dev  0.0s · 100% tests passed, 0 tests failed out of 1
+
+通过 · 3.0s · exit 0
+日志：<系统临时目录>/cxx-workflow-<唯一编号>
+```
+
+- 终端用少量颜色区分阶段与结果；`NO_COLOR=1` 或重定向时不添加颜色。
+- stderr 不筛除，按行展示；常见 stdout warning/error/note 保留附近上下文。未识别的
+  本地化诊断可能只在日志里，排查时用 `--verbose` 展开所有输出。
+- 每次保留独立 `stdout.log`、`stderr.log`，记录原始字节，不截断日志文件。
+  临时目录可能被系统清理；需要长期保留时自行复制。日志可能含路径或程序数据，
+  分享前请检查。失败额外显示末 40 行/片段，并返回原生非零退出码。
+- Ctrl-C 取消返回 130；POSIX 会清理本次工作流进程组。Windows 仅保证直接子进程终止。
+- 阶段耗时依据收到的输出边界，子进程缓冲可能影响它；总耗时是实际观测时间。
+  未识别的输出格式不影响执行或退出码，完整输出仍在日志中。
+- 这不是 `cxx run`：测试成功时 CTest 仍按自己的策略隐藏程序输出。正常运行应用
+  继续执行其可执行文件，或者使用 Neovim 的构建/运行入口。
+
+日常只改源码时可直接 `cmake --build --preset dev`，需要测试时再 `ctest --preset dev`。
+完整 workflow 仍会重新 configure；本入口不以跳过依赖检查来换取速度。
+
 The template fixes the project's editing baseline, including direct-include diagnostics
 for headers projects and the documented import-std exception above.
 Strict missing-include checking applies to `src/`, `include/`, `tests/`, and C/C++ files
@@ -144,7 +188,7 @@ clangd as well. Project style and diagnostic preferences remain fixed in the tem
 2. Small, readable implementation.
 3. Minimal generated files.
 4. No hidden host mutation.
-5. No build-system wrapper.
+5. No duplicate build policy; optional native-workflow presentation only.
 6. No network requirement during project creation.
 7. Prefer boring, inspectable code over framework-heavy abstractions.
 

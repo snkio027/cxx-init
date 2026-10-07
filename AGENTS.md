@@ -28,7 +28,8 @@ If code and architecture conflict, stop and surface the conflict. Do not silentl
 
 Do not:
 
-- create `cxx build`, `cxx test`, `cxx run`, or similar wrappers;
+- create `cxx build`, `cxx test`, `cxx run`, or similar wrappers (except the
+  explicitly approved `cxx workflow <preset>` presentation entry below);
 - replace CMake with another build system;
 - hard-code vcpkg or Conan into the base project;
 - install host tools;
@@ -63,6 +64,13 @@ If not, defer it.
 
 ## Current scope
 
+Approved on 2026-10-07: add optional `cxx workflow <preset> [--verbose]`.
+Delegate to one native `cmake --workflow --preset <preset>` process; CMake owns
+presets, ordering, failure propagation and dependencies. Only presentation,
+temporary logs and cancellation handling belong to this entry. Do not parse
+presets, add a runner, alter generated projects, install tools or publish a release.
+Preserve warnings, native nonzero exits, raw logs and a usable non-TTY mode.
+
 The current authorized release is v0.3.1, clarifying CLI options and vcpkg setup
 guidance without changing generated projects or dependency ownership. The experimental
 module capability remains limited to:
@@ -91,7 +99,8 @@ Publishing requires explicit release authorization; never bypass failed gates or
 The approved dependency integration is explicit `cxx init <name> --vcpkg`,
 including composition with `--import-std`. Preserve its dependency contract: offline
 generation, unchanged default fixture, project-owned fixed baseline, existing
-environment-supplied toolchain, no wrappers. Future releases require new authorization.
+environment-supplied toolchain, no dependency wrappers. The workflow presentation
+exception above does not change generation. Future releases require new authorization.
 Do not introduce `--modules`, custom named modules, module partitions, header units or profiles.
 Do not add `lib`, `header-only`, Homebrew, standalone binaries, self-update or auto-versioning.
 

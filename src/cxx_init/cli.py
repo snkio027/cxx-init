@@ -27,7 +27,7 @@ class GenerationError(Exception):
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         prog="cxx",
-        description="Create a C++23 executable project using CMake, Ninja and CTest.",
+        description="Create C++23 projects and display native CMake workflows.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Examples (options belong to init):
   cxx init demo                     # headers, no dependencies, local Git repo
@@ -37,7 +37,8 @@ def parse_args(argv):
   cxx init demo --vcpkg --import-std  # options can be combined
 
 Run cxx init --help for all options and build prerequisites.
-Generation is offline; building and dependency installation are separate steps.""",
+Generation is offline; building and dependency installation are separate steps.
+Use cxx workflow <preset> for a concise view of an existing CMake workflow.""",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -75,6 +76,15 @@ Generation does not install tools, download dependencies or build the project.""
         action="store_true",
         help="do not initialize a local Git repository",
     )
+
+    workflow = commands.add_parser(
+        "workflow", help="display a native CMake workflow with logs and a summary",
+        description="Run cmake --workflow --preset <preset> in the current directory. "
+                    "CMake owns every step; this command only presents its output. "
+                    "This runs the workflow, not an interactive application.",
+    )
+    workflow.add_argument("preset", help="existing workflow preset (for example dev, san or release)")
+    workflow.add_argument("--verbose", action="store_true", help="also stream all native output")
 
     return parser.parse_args(argv)
 
@@ -262,6 +272,14 @@ def create_app(name, use_git, import_std=False, vcpkg=False):
 
 def main(argv=None):
     args = parse_args(argv)
+
+    if args.command == "workflow":
+        # Also support the existing direct cli.py invocation used by source tests.
+        if __package__:
+            from .workflow import run_workflow
+        else:
+            from workflow import run_workflow
+        return run_workflow(args.preset, verbose=args.verbose)
 
     try:
         destination = create_app(args.name, use_git=not args.no_git,
