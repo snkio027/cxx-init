@@ -7,6 +7,7 @@ from pathlib import Path
 import queue
 import re
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -18,30 +19,62 @@ import time
 STAGE = re.compile(r'Executing workflow step (\d+) of (\d+): (\w+) preset "(.*)"')
 ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 DIAGNOSTIC = re.compile(r"\b(warning|error|fatal|note)\b|警告|错误", re.IGNORECASE)
-NAMES = {"configure": "配置", "build": "构建", "test": "测试", "package": "打包"}
+TEST_RESULT = re.compile(r"(\d+)% tests passed(?:, (\d+) tests failed)? out of (\d+)")
 
 
 class _Display:
-    def __init__(self, verbose):
+    def __init__(self, verbose, preset):
         self.verbose = verbose
+        self.preset = preset
         self.color = sys.stdout.isatty() and "NO_COLOR" not in os.environ and os.getenv("TERM") != "dumb"
+        self.dynamic = self.color and not verbose
+        self.live = False
+        self.last_tick = 0
+        self.frame = 0
         self.stage = None
         self.started = time.monotonic()
         self.detail = ""
         self.tail = deque(maxlen=40)
         self.warning_context = 0
 
-    def say(self, message, color=""):
+    def paint(self, message, color):
         if self.color and color:
-            message = f"\x1b[{color}m{message}\x1b[0m"
-        print(message, flush=True)
+            return f"\x1b[{color}m{message}\x1b[0m"
+        return message
 
-    def finish_stage(self, success):
+    def clear(self):
+        if self.live:
+            print("\r\x1b[2K", end="", flush=True)
+            self.live = False
+
+    def say(self, message, color=""):
+        self.clear()
+        print(self.paint(message, color), flush=True)
+
+    def tick(self):
+        now = time.monotonic()
+        if not self.dynamic or not self.stage or now - self.last_tick < 0.1:
+            return
+        spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"[self.frame % 10]
+        # Only ASCII stage/progress text goes into the replaceable row. Keep it
+        # on one physical line even in a narrow terminal; completed rows are full.
+        text = f" {self.stage[0]:<11} {now - self.started:>6.1f}s  [{self.stage[2]}]"
+        width = shutil.get_terminal_size().columns
+        row = ("  " + spinner + text.encode("ascii", "replace").decode())[:max(0, width - 1)]
+        print("\r\x1b[2K" + self.paint(row, "36"), end="", flush=True)
+        self.live, self.last_tick, self.frame = True, now, self.frame + 1
+
+    def finish_stage(self, success, cancelled=False):
         if self.stage:
-            mark = "✓" if success else "✗"
-            detail = f" · {self.detail}" if self.detail else ""
-            self.say(f"  {mark} {self.stage}  {time.monotonic() - self.started:.1f}s{detail}",
-                     "32" if success else "31")
+            mark, color = ("✓", "32") if success else ("✗", "31")
+            if cancelled:
+                mark, color = "−", "33"
+            kind, preset, _ = self.stage
+            detail = f"  {self.detail}" if self.detail else ""
+            if preset != self.preset:
+                detail += f"  ({preset})"
+            self.say(f"  {self.paint(mark, color)} {kind:<11}"
+                     + self.paint(f" {time.monotonic() - self.started:>6.1f}s{detail}", "90"))
             self.stage = None
 
     def line(self, text, stream):
@@ -52,14 +85,21 @@ class _Display:
             # Only a later CMake stage marker implies that the previous step finished.
             self.finish_stage(True)
             index, count, kind, preset = stage.groups()
-            self.stage = f"[{index}/{count}] {NAMES.get(kind, kind)} · {preset}"
+            self.stage = (kind.capitalize(), preset, f"{index}/{count}")
             self.started, self.detail = time.monotonic(), ""
             self.warning_context = 0
-            self.say(f"  → {self.stage}", "36")
+            if self.dynamic:
+                self.tick()
+            else:
+                self.say(f"  > {kind.capitalize()} [{index}/{count}]", "90")
         elif clean == "ninja: no work to do.":
-            self.detail = "无需重新编译"
-        elif re.fullmatch(r"\d+% tests passed(?:, \d+ tests failed)? out of \d+", clean):
-            self.detail = clean
+            self.detail = "up to date"
+        elif result := TEST_RESULT.fullmatch(clean):
+            percent, failed, total = result.groups()
+            # New CTest omits the failed count on success. Don't infer a count
+            # from a rounded percentage for an unfamiliar failure summary.
+            self.detail = (f"{int(total) - int(failed or 0)}/{total} passed"
+                           if failed is not None or percent == "100" else clean)
         # stderr is never filtered. Common stdout diagnostics keep following
         # source/caret/note lines; unfamiliar output is always available in logs.
         diagnostic = bool(DIAGNOSTIC.search(clean))
@@ -109,7 +149,7 @@ def _stop(process):
 
 
 def run_workflow(preset, *, verbose=False):
-    display = _Display(verbose)
+    display = _Display(verbose, preset)
     started = time.monotonic()
     command = ["cmake", "--workflow", "--preset", preset]
     process = None
@@ -119,11 +159,9 @@ def run_workflow(preset, *, verbose=False):
     try:
         log_dir = Path(tempfile.mkdtemp(prefix="cxx-workflow-"))
     except OSError as error:
-        print(f"cxx: 无法创建日志：{error}", file=sys.stderr)
+        print(f"cxx: cannot create logs: {error}", file=sys.stderr)
         return 1
-    display.say(f"\n{Path.cwd().name} · {preset}", "1")
-    display.say("命令：" + (shlex.join(command) if os.name == "posix" else subprocess.list2cmdline(command)))
-    display.say(f"日志：{log_dir}\n", "90")
+    display.say("\n  " + display.paint(Path.cwd().name, "1") + display.paint(f" / {preset}\n", "90"))
 
     def cancel(signum, _frame):
         nonlocal cancelled
@@ -149,13 +187,15 @@ def run_workflow(preset, *, verbose=False):
                     if cancel_deadline is None:
                         _send(process, cancelled)
                         cancel_deadline = time.monotonic() + 3
-                        display.say("\n正在取消工作流…", "33")
+                        display.say("  Cancelling…", "33")
+                        display.dynamic = False
                     elif time.monotonic() >= cancel_deadline:
                         if os.name == "posix":
                             _send(process, signal.SIGKILL)
                         elif process.poll() is None:
                             process.kill()
                         cancel_deadline = float("inf")
+                display.tick()
                 try:
                     name, chunk = messages.get(timeout=0.1)
                 except queue.Empty:
@@ -185,7 +225,7 @@ def run_workflow(preset, *, verbose=False):
     except OSError as error:
         if process is not None:
             _stop(process)
-        display.say(f"cxx: 工作流无法完成：{error}", "31")
+        display.say(f"cxx: workflow could not complete: {error}", "31")
         result = 127 if isinstance(error, FileNotFoundError) and process is None else 1
     finally:
         for sig, handler in previous_handlers.items():
@@ -194,12 +234,18 @@ def run_workflow(preset, *, verbose=False):
             process.stdout.close()
             process.stderr.close()
 
-    display.finish_stage(result == 0)
-    if result != 0 and not verbose and display.tail:
-        display.say("\n失败前的输出（末 40 行/片段；完整内容见日志）：", "33")
+    display.finish_stage(result == 0, cancelled=bool(cancelled))
+    if result != 0 and not cancelled and not verbose and display.tail:
+        display.say("\n  Recent output (last 40 lines/fragments; full output in logs):", "33")
         for line in display.tail:
             display.say(line.rstrip("\r\n"))
-    display.say(f"\n{'通过' if result == 0 else '未完成'} · {time.monotonic() - started:.1f}s · exit {result}",
-                "32" if result == 0 else "31")
-    display.say(f"日志：{log_dir}", "90")
+    label, color = ("PASS", "32") if result == 0 else ("FAIL", "31")
+    if cancelled:
+        label, color = "CANCELLED", "33"
+    detail = f"  {time.monotonic() - started:.1f}s" + (f" · exit {result}" if result else "")
+    display.say("\n  " + display.paint(label, "1;" + color) + display.paint(detail, "90"))
+    if verbose or result:
+        command_text = shlex.join(command) if os.name == "posix" else subprocess.list2cmdline(command)
+        display.say(f"  Command  {command_text}", "90")
+    display.say(f"  Logs     {log_dir}\n", "90")
     return result

@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import subprocess
@@ -32,9 +33,11 @@ if mode == "large":
     os.write(2, b"stderr without newline")
     sys.exit(0)
 print('Executing workflow step 1 of 3: configure preset "custom"', flush=True)
+time.sleep(0.12)
 print("routine dependency usage instructions")
 print("stderr notice without a diagnostic keyword", file=sys.stderr, flush=True)
 print('Executing workflow step 2 of 3: build preset "custom"', flush=True)
+time.sleep(0.12)
 print("source.cpp:1: warning: important warning")
 print("  source context")
 print("  ^")
@@ -45,6 +48,7 @@ if mode == "failure":
 if mode == "signal":
     os.kill(os.getpid(), signal.SIGTERM)
 print('Executing workflow step 3 of 3: test preset "custom"', flush=True)
+time.sleep(0.12)
 print("100% tests passed, 0 tests failed out of 1")
 '''
 
@@ -76,15 +80,17 @@ class WorkflowTests(unittest.TestCase):
         preset = "custom ; $(touch unexpected)"
         result = self.run_workflow(preset=preset)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("通过", result.stdout)
-        self.assertIn("[1/3] 配置", result.stdout)
-        self.assertIn("无需重新编译", result.stdout)
-        self.assertIn("tests failed out of 1", result.stdout)
+        self.assertIn("PASS", result.stdout)
+        self.assertIn("> Configure [1/3]", result.stdout)
+        self.assertIn("up to date", result.stdout)
+        self.assertIn("1/1 passed", result.stdout)
         self.assertIn("important warning\n  source context\n  ^", result.stdout)
         self.assertIn("stderr notice without a diagnostic keyword", result.stdout)
         self.assertNotIn("routine dependency usage", result.stdout)
         self.assertNotIn("\x1b", result.stdout)
-        self.assertIn("'custom ; $(touch unexpected)'", result.stdout)
+        self.assertNotIn("Command", result.stdout)
+        self.assertNotIn("exit 0", result.stdout)
+        self.assertEqual(result.stdout.count("Logs     "), 1)
         raw = self.log("stdout").decode()
         self.assertIn("routine dependency usage", raw)
         invocation = json.loads(raw.splitlines()[0])
@@ -94,25 +100,30 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn(b"stderr notice", self.log("stderr"))
 
     def test_verbose_streams_routine_output_too(self):
-        result = self.run_workflow("success", "--verbose")
+        result = self.run_workflow("success", "--verbose", preset="custom ; $(touch unexpected)")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("routine dependency usage", result.stdout)
-        self.assertNotIn("失败前的输出", result.stdout)
+        self.assertNotIn("Recent output", result.stdout)
+        self.assertIn("Command  cmake --workflow --preset 'custom ; $(touch unexpected)'", result.stdout)
+        self.assertFalse((self.root / "unexpected").exists())
 
     def test_failure_preserves_exit_and_context_without_success(self):
         result = self.run_workflow("failure")
         self.assertEqual(result.returncode, 47, result.stderr)
         self.assertIn("exit 47", result.stdout)
-        self.assertIn("✗ [2/3] 构建", result.stdout)
+        self.assertIn("✗ Build", result.stdout)
         self.assertIn("failure context", result.stdout)
-        self.assertNotIn("通过", result.stdout)
+        self.assertNotIn("PASS", result.stdout)
+        self.assertIn("FAIL", result.stdout)
+        self.assertIn("Recent output", result.stdout)
         self.assertNotIn("[3/3]", result.stdout)
         self.assertIn(b"failure context", self.log("stdout"))
 
     def test_unknown_progress_does_not_invent_steps(self):
         result = self.run_workflow("unknown")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("exit 0", result.stdout)
+        self.assertIn("PASS", result.stdout)
+        self.assertNotIn("exit 0", result.stdout)
         self.assertNotIn("[1/", result.stdout)
         self.assertIn(b"unrecognized native progress", self.log("stdout"))
 
@@ -128,13 +139,13 @@ class WorkflowTests(unittest.TestCase):
         result = self.run_workflow()
         self.assertEqual(result.returncode, 127, result.stderr)
         self.assertIn("exit 127", result.stdout)
-        self.assertNotIn("通过", result.stdout)
+        self.assertNotIn("PASS", result.stdout)
 
     @unittest.skipUnless(os.name == "posix", "POSIX signal exit convention")
     def test_child_signal_is_not_a_success(self):
         result = self.run_workflow("signal")
         self.assertEqual(result.returncode, 128 + signal.SIGTERM, result.stderr)
-        self.assertNotIn("通过", result.stdout)
+        self.assertNotIn("PASS", result.stdout)
 
     @unittest.skipUnless(os.name == "posix", "POSIX process-group cleanup")
     def test_cancel_reaps_even_signal_ignoring_descendants(self):
@@ -154,8 +165,8 @@ class WorkflowTests(unittest.TestCase):
                     process.send_signal(sig)
                     stdout, stderr = process.communicate(timeout=8)
                     self.assertEqual(process.returncode, 128 + sig, stdout + stderr)
-                    self.assertIn("未完成", stdout)
-                    self.assertNotIn("通过", stdout)
+                    self.assertIn("CANCELLED", stdout)
+                    self.assertNotIn("PASS", stdout)
                     # A killed orphan can briefly remain a zombie on Linux.
                     observed = subprocess.run(["/bin/ps", "-o", "stat=", "-p", str(child)],
                                               capture_output=True, text=True)
@@ -183,19 +194,33 @@ class WorkflowTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "posix", "PTY display contract")
     def test_real_tty_colors_and_no_color(self):
         import errno
+        import fcntl
         import pty
-        for no_color in (False, True):
-            with self.subTest(no_color=no_color):
+        import select
+        import struct
+        import termios
+        for no_color, term, width, verbose in ((False, "xterm-256color", 80, False),
+                                               (False, "xterm-256color", 20, False),
+                                               (True, "xterm-256color", 80, False),
+                                               (False, "dumb", 80, False),
+                                               (False, "xterm-256color", 80, True)):
+            with self.subTest(no_color=no_color, term=term, width=width, verbose=verbose):
                 master, slave = pty.openpty()
-                environment = {**self.env, "TERM": "xterm-256color"}
+                fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, width, 0, 0))
+                environment = {**self.env, "TERM": term, "COLUMNS": str(width)}
                 if not no_color:
                     environment.pop("NO_COLOR", None)
-                process = subprocess.Popen([sys.executable, str(CLI), "workflow", "custom"],
+                command = [sys.executable, str(CLI), "workflow", "custom"] + (["--verbose"] if verbose else [])
+                process = subprocess.Popen(command,
                                            cwd=self.root, env=environment, stdout=slave, stderr=slave)
                 os.close(slave)
                 output = bytearray()
                 try:
+                    deadline = time.monotonic() + 5
                     while True:
+                        self.assertLess(time.monotonic(), deadline, "PTY output did not complete")
+                        if not select.select([master], [], [], 0.1)[0]:
+                            continue
                         try:
                             chunk = os.read(master, 8192)
                         except OSError as error:
@@ -205,11 +230,42 @@ class WorkflowTests(unittest.TestCase):
                         if not chunk:
                             break
                         output.extend(chunk)
+                    process.wait(timeout=5)
                 finally:
                     os.close(master)
+                    if process.poll() is None:
+                        process.kill()
                     process.wait(timeout=5)
                 self.assertEqual(process.returncode, 0, output.decode())
-                self.assertEqual(b"\x1b[32m" in output, not no_color)
+                color = not no_color and term != "dumb"
+                dynamic = color and not verbose
+                self.assertEqual(b"\x1b[32m" in output, color)
+                self.assertEqual(b"\x1b[2K" in output, dynamic)
+                if not color:
+                    self.assertNotIn(b"\x1b", output)
+                # Replay only the emitted line-edit controls to inspect the final
+                # scrollback, not just the presence of ANSI bytes in a recording.
+                plain = re.sub(r"\x1b\[[0-9;]*m", "", output.decode())
+                rows, row = [], ""
+                for part in re.split(r"(\r\x1b\[2K|\r\n)", plain):
+                    if part == "\r\x1b[2K":
+                        self.assertLess(len(row), width, "transient row would wrap")
+                        row = ""
+                    elif part == "\r\n":
+                        rows.append(row)
+                        row = ""
+                    else:
+                        row += part
+                screen = "\n".join(rows)
+                for stage in ("Configure", "Build", "Test"):
+                    self.assertEqual(screen.count(f"✓ {stage}"), 1, screen)
+                self.assertEqual("> Configure" in screen, not dynamic)
+                self.assertIn("important warning\n  source context\n  ^", screen)
+                self.assertIn("stderr notice", screen)
+                self.assertIn("1/1 passed", screen)
+                self.assertIn("PASS", screen)
+                self.assertNotIn("exit 0", screen)
+                self.assertNotRegex(screen, r"[\u4e00-\u9fff]")
 
 
 @unittest.skipUnless(shutil.which("cmake") and shutil.which("ninja"), "requires native CMake/Ninja")
@@ -243,12 +299,12 @@ class NativeWorkflowTests(unittest.TestCase):
             result = run_cxx(project, "workflow", "local", env=environment)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn("visible-compiler-warning", result.stdout)
-            self.assertIn("100% tests passed", result.stdout)
+            self.assertIn("1/1 passed", result.stdout)
             cache = (project / "build/dev/CMakeCache.txt").read_text()
             self.assertIn("WORKFLOW_PROBE:UNINITIALIZED=from-preset", cache)
             result = run_cxx(project, "workflow", "local", env=environment)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertIn("无需重新编译", result.stdout)
+            self.assertIn("up to date", result.stdout)
             for kind, content in (("build", "this cannot compile"), ("test", "int main() { return 47; }"),
                                   ("configure", "int main() { return 0; }")):
                 with self.subTest(kind=kind):
@@ -260,11 +316,11 @@ class NativeWorkflowTests(unittest.TestCase):
                     displayed = run_cxx(project, "workflow", "local", env=environment)
                     self.assertNotEqual(native.returncode, 0)
                     self.assertEqual(displayed.returncode, native.returncode, displayed.stdout)
-                    self.assertNotIn("通过", displayed.stdout)
-                    self.assertIn("未完成", displayed.stdout)
+                    self.assertNotIn("PASS", displayed.stdout)
+                    self.assertIn("FAIL", displayed.stdout)
             missing = run_cxx(project, "workflow", "does-not-exist", env=environment)
             self.assertNotEqual(missing.returncode, 0)
-            self.assertNotIn("通过", missing.stdout)
+            self.assertNotIn("PASS", missing.stdout)
 
 
 if __name__ == "__main__":

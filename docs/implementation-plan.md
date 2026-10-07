@@ -229,4 +229,6 @@ successful/no-op builds, warnings, configure/build/test failures, missing tools 
 presets, arbitrary nonzero exits, cancellation/descendant cleanup, large and partial
 output, raw logs, and installed-wheel invocation. Compare against native CMake on a
 real generated project, including inherited presets and native failure stopping.
+Check English output and real PTY scrollback at normal/narrow widths, including
+diagnostics during progress, verbose mode, NO_COLOR and TERM=dumb fallbacks.
 This increment does not authorize a version bump, publication, host install or merge.

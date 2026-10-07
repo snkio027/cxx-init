@@ -60,6 +60,11 @@ format must not change execution or the final verdict. Only the native process
 exit status decides success. Nonzero exits propagate; signals use 128 + signal.
 Stage times reflect observed output boundaries, not compiler profiling measurements.
 
+The presentation language is English; native tool output is not translated. A capable
+TTY uses one width-bounded live row, cleared before diagnostics, and leaves one row
+per completed stage. Verbose, redirected, NO_COLOR and dumb-terminal output are
+append-only. Success omits redundant command/exit-zero text; logs remain discoverable.
+
 Stderr is always visible; common stdout diagnostics retain nearby context.
 `--verbose` streams everything. Unknown/localized stdout diagnostics remain in the
 raw logs and may require verbose mode. TTY status colors respect NO_COLOR; non-TTY

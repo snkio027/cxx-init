@@ -137,9 +137,9 @@ class WheelReleaseTests(unittest.TestCase):
             for preset in ("dev", "san", "release"):
                 self.run_checked(["cmake", "--workflow", "--preset", preset], cwd=project)
                 summary = self.run_checked([str(executable), "workflow", preset], cwd=project, env=environment)
-                self.assertIn("通过", summary.stdout)
-                self.assertIn("exit 0", summary.stdout)
-                self.assertIn("日志：", summary.stdout)
+                self.assertIn("PASS", summary.stdout)
+                self.assertNotIn("exit 0", summary.stdout)
+                self.assertIn("Logs     ", summary.stdout)
                 app = project / "build" / preset / (
                     "release_smoke.exe" if os.name == "nt" else "release_smoke"
                 )
