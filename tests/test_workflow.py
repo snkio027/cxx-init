@@ -90,7 +90,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("\x1b", result.stdout)
         self.assertNotIn("Command", result.stdout)
         self.assertNotIn("exit 0", result.stdout)
-        self.assertEqual(result.stdout.count("Logs     "), 1)
+        self.assertNotIn("Logs     ", result.stdout)
         raw = self.log("stdout").decode()
         self.assertIn("routine dependency usage", raw)
         invocation = json.loads(raw.splitlines()[0])
@@ -105,6 +105,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("routine dependency usage", result.stdout)
         self.assertNotIn("Recent output", result.stdout)
         self.assertIn("Command  cmake --workflow --preset 'custom ; $(touch unexpected)'", result.stdout)
+        self.assertEqual(result.stdout.count("Logs     "), 1)
         self.assertFalse((self.root / "unexpected").exists())
 
     def test_failure_preserves_exit_and_context_without_success(self):
@@ -116,6 +117,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("PASS", result.stdout)
         self.assertIn("FAIL", result.stdout)
         self.assertIn("Recent output", result.stdout)
+        self.assertEqual(result.stdout.count("Logs     "), 1)
         self.assertNotIn("[3/3]", result.stdout)
         self.assertIn(b"failure context", self.log("stdout"))
 
@@ -166,6 +168,7 @@ class WorkflowTests(unittest.TestCase):
                     stdout, stderr = process.communicate(timeout=8)
                     self.assertEqual(process.returncode, 128 + sig, stdout + stderr)
                     self.assertIn("CANCELLED", stdout)
+                    self.assertEqual(stdout.count("Logs     "), 1)
                     self.assertNotIn("PASS", stdout)
                     # A killed orphan can briefly remain a zombie on Linux.
                     observed = subprocess.run(["/bin/ps", "-o", "stat=", "-p", str(child)],
@@ -264,6 +267,7 @@ class WorkflowTests(unittest.TestCase):
                 self.assertIn("stderr notice", screen)
                 self.assertIn("1/1 passed", screen)
                 self.assertIn("PASS", screen)
+                self.assertEqual("Logs     " in screen, verbose)
                 self.assertNotIn("exit 0", screen)
                 self.assertNotRegex(screen, r"[\u4e00-\u9fff]")
 
