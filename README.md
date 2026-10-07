@@ -138,7 +138,6 @@ Example of the completed terminal view (timings vary):
   ✓ Test           0.0s  1/1 passed
 
   PASS  3.0s
-  Logs     <temporary directory>/cxx-workflow-<unique ID>
 ```
 
 - The English UI uses a single live progress row and one permanent row per completed
@@ -150,6 +149,9 @@ Example of the completed terminal view (timings vary):
   Unrecognized localized diagnostics may appear only in logs; use `--verbose` to
   stream all output. Diagnostics are never overwritten by the live progress row.
 - Each run keeps complete raw bytes in separate `stdout.log` and `stderr.log` files.
+  Successful summary runs omit the log path; failures, cancellation and `--verbose`
+  show it. To locate a successful run's retained logs without rerunning the workflow,
+  look under the system temporary directory for `cxx-workflow-*`.
   The OS may clean temporary directories; copy logs if needed and inspect them
   before sharing, as they may contain paths or program data. Failures also show the
   last 40 lines/fragments, the exact command and the native nonzero exit code.

@@ -63,7 +63,8 @@ Stage times reflect observed output boundaries, not compiler profiling measureme
 The presentation language is English; native tool output is not translated. A capable
 TTY uses one width-bounded live row, cleared before diagnostics, and leaves one row
 per completed stage. Verbose, redirected, NO_COLOR and dumb-terminal output are
-append-only. Success omits redundant command/exit-zero text; logs remain discoverable.
+append-only. Success omits redundant command/exit-zero text and the log path.
+Raw logs are still retained; failures, cancellation and verbose mode display the path.
 
 Stderr is always visible; common stdout diagnostics retain nearby context.
 `--verbose` streams everything. Unknown/localized stdout diagnostics remain in the

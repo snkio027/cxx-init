@@ -139,7 +139,7 @@ class WheelReleaseTests(unittest.TestCase):
                 summary = self.run_checked([str(executable), "workflow", preset], cwd=project, env=environment)
                 self.assertIn("PASS", summary.stdout)
                 self.assertNotIn("exit 0", summary.stdout)
-                self.assertIn("Logs     ", summary.stdout)
+                self.assertNotIn("Logs     ", summary.stdout)
                 app = project / "build" / preset / (
                     "release_smoke.exe" if os.name == "nt" else "release_smoke"
                 )

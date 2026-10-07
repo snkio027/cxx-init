@@ -247,5 +247,6 @@ def run_workflow(preset, *, verbose=False):
     if verbose or result:
         command_text = shlex.join(command) if os.name == "posix" else subprocess.list2cmdline(command)
         display.say(f"  Command  {command_text}", "90")
-    display.say(f"  Logs     {log_dir}\n", "90")
+        display.say(f"  Logs     {log_dir}", "90")
+    display.say("")
     return result
