@@ -113,7 +113,7 @@ Each workflow configures, builds, and runs CTest:
 The configure step restores the preset's sanitizer setting even after a manual cache override.
 `release` is a local optimized build, not a packaging or publishing command.
 
-### Terminal summary (unreleased)
+### Terminal summary (v0.4.0)
 
 Run from an existing project root:
 
@@ -126,7 +126,7 @@ cxx workflow dev --verbose
 This optional view executes exactly one `cmake --workflow --preset <preset>`.
 CMake still owns presets, compilers, dependency installation, step ordering and
 failure stopping. It does not rewrite projects or replace the native command.
-The published 0.3.1 release does not include this entry yet.
+Available starting with 0.4.0; earlier releases do not include this entry.
 
 Example of the completed terminal view (timings vary):
 
@@ -247,7 +247,7 @@ Run the black-box test suite with:
 python3 -m unittest discover -s tests -v
 ```
 
-For the v0.3.1 release gate on the verified Mac toolchain, explicitly enable the
+For the v0.4.0 release gate on the verified Mac toolchain, explicitly enable the
 import-std and vcpkg artifact tests (otherwise they are reported as skipped, not verified).
 `VCPKG_ROOT` must point to the existing tested vcpkg checkout:
 
@@ -259,7 +259,7 @@ export CLANGD="$(brew --prefix llvm)/bin/clangd"
 export CLANG_TIDY="$(brew --prefix llvm)/bin/clang-tidy"
 uv build --no-sources
 CXX_TEST_CLANGD=1 CXX_TEST_IMPORT_STD=1 CXX_TEST_VCPKG=1 \
-CXX_TEST_DIST="$PWD/dist" CXX_RELEASE_TAG=v0.3.1 \
+CXX_TEST_DIST="$PWD/dist" CXX_RELEASE_TAG=v0.4.0 \
   python3 -m unittest discover -s tests -v
 ```
 

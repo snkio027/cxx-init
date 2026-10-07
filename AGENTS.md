@@ -68,11 +68,14 @@ Approved on 2026-10-07: add optional `cxx workflow <preset> [--verbose]`.
 Delegate to one native `cmake --workflow --preset <preset>` process; CMake owns
 presets, ordering, failure propagation and dependencies. Only presentation,
 temporary logs and cancellation handling belong to this entry. Do not parse
-presets, add a runner, alter generated projects, install tools or publish a release.
+presets, add a runner or alter generated projects.
 Preserve warnings, native nonzero exits, raw logs and a usable non-TTY mode.
 
-The current authorized release is v0.3.1, clarifying CLI options and vcpkg setup
-guidance without changing generated projects or dependency ownership. The experimental
+The owner subsequently authorized merge, publication and local activation on
+2026-10-07. The current authorized release is v0.4.0, adding the English native
+workflow summary without changing generated projects, dependencies or init behavior.
+Local activation upgrades only cxx-init; it does not upgrade the host toolchain.
+The experimental
 module capability remains limited to:
 
 ```text
