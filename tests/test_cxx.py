@@ -47,7 +47,7 @@ class CxxTests(unittest.TestCase):
             result = run_cxx(Path(temporary_directory), "--version")
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout, "cxx 0.4.1\n")
+            self.assertEqual(result.stdout, "cxx 0.4.2\n")
 
     def test_rejects_the_previous_app_command(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

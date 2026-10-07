@@ -74,7 +74,13 @@ Preserve warnings, native nonzero exits, raw logs and a usable non-TTY mode.
 The owner subsequently authorized merge, publication and local activation on
 2026-10-07. On 2026-10-08 the owner authorized v0.4.1 publication and local
 activation: successful workflows omit log paths; failure, cancellation and verbose
-output retain them. Generated projects, dependencies and init behavior stay unchanged.
+output retain them. That release kept generated projects, dependencies and init behavior unchanged.
+On 2026-10-08 the owner authorized completing the previously approved println
+template change, publication as v0.4.2, and targeted local activation. New header
+projects use `<print>` and `std::println`; import-std projects retain `import std;`
+and use the same print call. Require a standard library with C++23 print support,
+preserve the exact greeting and existing project structure, and do not migrate
+existing projects. Run the complete release gate, including the Ubuntu GCC 14 gate.
 Local activation upgrades only cxx-init; it does not upgrade the host toolchain.
 The experimental
 module capability remains limited to:
