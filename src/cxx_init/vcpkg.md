@@ -5,10 +5,13 @@ Creation was offline. `vcpkg.json` starts with no libraries and pins the builtin
 registry at `434307da09bc05b2c86996dccc8b2351fc0d5d37`, a tested snapshot, not
 an automatic latest-version policy. Review baseline updates as project changes.
 
-Point at your **existing** vcpkg checkout before configuring:
+`VCPKG_ROOT` must point at your **existing** vcpkg checkout before configuring.
+If it is already configured, keep it. Otherwise, export it to the actual absolute
+path of your checkout, not an example placeholder. That directory must contain
+`scripts/buildsystems/vcpkg.cmake`. Inspect the current setting and then configure:
 
 ```sh
-export VCPKG_ROOT="/path/to/existing/vcpkg"
+printf '%s\n' "$VCPKG_ROOT"
 cmake --workflow --preset dev
 ```
 

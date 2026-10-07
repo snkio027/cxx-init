@@ -69,6 +69,36 @@ def verify_vcpkg_project(test, project, environment, *, import_std=False):
 
 
 class VcpkgTests(unittest.TestCase):
+    def test_next_commands_preserve_vcpkg_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture_bin = root / "bin"
+            fixture_bin.mkdir()
+            cmake = fixture_bin / "cmake"
+            cmake.write_text('#!/bin/sh\n'
+                             'printf "%s\\n" "$VCPKG_ROOT"\n'
+                             'test -f "$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"\n')
+            cmake.chmod(0o755)
+            toolchain = root / "existing vcpkg/scripts/buildsystems/vcpkg.cmake"
+            toolchain.parent.mkdir(parents=True)
+            toolchain.touch()
+            for index, value in enumerate((str(root / "existing vcpkg"), "/missing-vcpkg", None)):
+                with self.subTest(vcpkg_root=value):
+                    environment = {**os.environ, "PATH": str(fixture_bin) + os.pathsep + os.environ["PATH"]}
+                    environment.pop("VCPKG_ROOT", None)
+                    if value is not None:
+                        environment["VCPKG_ROOT"] = value
+                    result = run_cxx(root, "init", f"demo-{index}", "--vcpkg", "--no-git",
+                                     env=environment)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    next_commands = result.stdout.split("Next:\n", 1)[1]
+                    copied = subprocess.run(["/bin/sh", "-c", next_commands], cwd=root,
+                                            env=environment, capture_output=True, text=True)
+                    self.assertEqual(copied.stdout, (value or "") + "\n")
+                    self.assertEqual(copied.returncode, 0 if index == 0 else 1, copied.stderr)
+                    readme = (root / f"demo-{index}/README.md").read_text()
+                    self.assertNotIn("/path/to/existing/vcpkg", result.stdout + readme)
+
     def test_offline_generation_and_composition(self):
         for module in (False, True):
             with self.subTest(import_std=module), tempfile.TemporaryDirectory() as temporary:

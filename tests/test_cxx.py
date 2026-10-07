@@ -24,6 +24,23 @@ def run_cxx(working_directory, *arguments, executable=CLI, env=None):
 
 
 class CxxTests(unittest.TestCase):
+    def test_help_exposes_init_options_without_creating_a_project(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            workspace = Path(temporary_directory)
+            for arguments in (("--help",), ("init", "--help")):
+                with self.subTest(arguments=arguments):
+                    result = run_cxx(workspace, *arguments)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stderr, "")
+                    for option in ("--vcpkg", "--import-std", "--no-git"):
+                        self.assertIn(option, result.stdout)
+                    self.assertIn("C++23", result.stdout)
+                    self.assertEqual(list(workspace.iterdir()), [])
+                    if arguments[0] == "init":
+                        self.assertIn("VCPKG_ROOT", result.stdout)
+                        self.assertIn("existing vcpkg checkout", result.stdout)
+                        self.assertIn("fixed registry baseline", " ".join(result.stdout.split()))
+
     def test_reports_version(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             result = run_cxx(Path(temporary_directory), "--version")

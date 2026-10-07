@@ -100,6 +100,12 @@ class WheelReleaseTests(unittest.TestCase):
 
             workspace = root / "workspace"
             workspace.mkdir()
+            for arguments in (("--help",), ("init", "--help")):
+                help_result = self.run_checked([str(executable), *arguments], cwd=workspace, env=environment)
+                self.assertEqual(help_result.stderr, "")
+                for option in ("--vcpkg", "--import-std", "--no-git"):
+                    self.assertIn(option, help_result.stdout)
+                self.assertEqual(list(workspace.iterdir()), [])
             generation = self.run_checked(
                 [str(executable), "init", "release-smoke", *(["--import-std"] if import_std else []),
                  *(["--vcpkg"] if vcpkg else [])],
