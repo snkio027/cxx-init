@@ -239,3 +239,11 @@ do not change generated projects or upgrade unrelated host tools.
 On 2026-10-08 the owner authorized v0.4.1: omit log paths on ordinary success,
 retaining raw logs and their location on failure, cancellation or verbose output.
 Use the same complete release gates before publication and targeted local activation.
+
+On 2026-10-08 the owner authorized closing the remaining approved updates. Release
+v0.4.2 includes the previously approved println template: headers use `<print>`,
+the explicit import-std specialization keeps `import std;`, and both use
+`std::println` with the unchanged greeting. Verify the installed wheel's source
+as well as runtime output so the old cout template cannot pass unnoticed. Require
+the complete Mac gate and the existing Ubuntu/Trusted Publishing workflow with
+GCC 14; do not rewrite existing projects or upgrade unrelated host tools.
