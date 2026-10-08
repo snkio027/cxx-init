@@ -1,6 +1,6 @@
 # cxx-init Architecture
 
-**Status:** Bootstrap baseline with approved workflow presentation (2026-10-07)
+**Status:** Bootstrap baseline with opt-in first workflow (2026-10-09)
 **Purpose:** Personal Modern C++ project bootstrap
 
 ## 1. Product definition
@@ -8,7 +8,7 @@
 The `cxx-init` repository ships `cxx`, a small offline scaffolder with an optional
 native-workflow presentation entry.
 
-The job of `cxx init` remains:
+The default job of `cxx init` remains:
 
 ```text
 inputs
@@ -72,6 +72,23 @@ raw logs and may require verbose mode. TTY status colors respect NO_COLOR; non-T
 output has no presentation escape sequences. Cancellation forwards to the POSIX
 process group and bounds cleanup; Windows only guarantees direct-child termination.
 This is a workflow view, not an interactive application runner or a PTY replacement.
+
+### Approved composition: first workflow after creation
+
+On 2026-10-09 the owner approved `cxx init <name> --workflow <dev|san|release>`.
+Generation finishes first, including optional Git initialization. Only then does
+the existing presentation entry launch one native workflow in the destination,
+without changing the parent working directory or the inherited environment.
+The option selects one of the three generated workflows; no preset parser, new
+compiler/dependency abstraction or generated configuration is introduced.
+
+Default init stays offline. The explicit second phase may restore dependencies,
+compile and execute the project's CTest tests, but does not install host tools.
+Generation failures never launch a workflow. Workflow failures or cancellation
+retain the generated project, propagate the existing workflow exit status and
+print an in-project retry command. A created project is not itself a build PASS.
+Compiler and dependency choices remain native CMake preset/toolchain inputs;
+the caller supplies them before choosing this combined operation.
 
 ## 3. Base generated project
 
@@ -258,7 +275,8 @@ it is a reproducible starting point, not an implicit latest-version policy. The 
 manifest belongs to the project and baseline updates are explicit project changes.
 `VCPKG_ROOT` selects an already installed toolchain; no machine paths are generated.
 Missing toolchains fail before `project()`, with no silent unmanaged fallback. Package
-restoration may access the network during CMake configure, never during `cxx init`.
+restoration may access the network during CMake configure, never during generation.
+This includes the explicitly requested post-generation `init --workflow` phase.
 Only CMake target dependencies reach clangd through the compilation database.
 Compiler/triplet/ABI choices remain the project's responsibility; setting `CXX` for the
 application is not a promise that vcpkg will build every dependency with the same compiler.
@@ -315,7 +333,7 @@ wheel / source distribution
 Runtime dependencies remain empty. `uv_build` is a build dependency only.
 
 The wheel must contain the canonical fixture so project creation remains offline after installation.
-Package downloads belong to installation and upgrade, never to `cxx init`.
+Downloads of cxx-init itself belong to installation and upgrade, never to `cxx init`.
 An explicitly invoked workflow may access the network through the project's native
 CMake/toolchain steps; the presentation layer does not initiate downloads itself.
 

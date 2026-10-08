@@ -247,3 +247,17 @@ the explicit import-std specialization keeps `import std;`, and both use
 as well as runtime output so the old cout template cannot pass unnoticed. Require
 the complete Mac gate and the existing Ubuntu/Trusted Publishing workflow with
 GCC 14; do not rewrite existing projects or upgrade unrelated host tools.
+
+## Approved DX increment — first workflow (2026-10-09)
+
+Compose generation with the existing workflow view only when the owner supplies
+`cxx init <name> --workflow <dev|san|release>`. Keep default output and generated
+files unchanged. Do not infer or install compilers, tools or libraries. Document
+environment/preset compiler selection, cache boundaries and vcpkg toolchain ownership.
+
+Verify exactly one native invocation in the completed destination, inherited
+environment, all existing generation-option combinations, generation failure before
+execution, missing CMake, native nonzero status, cancellation and an actionable
+retry without deleting the project. Extend the installed-wheel gate to actually
+create and build through the new entry before the existing artifact checks.
+Deliver through a PR; do not merge, publish or activate without further approval.

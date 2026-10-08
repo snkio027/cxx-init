@@ -143,6 +143,69 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("exit 127", result.stdout)
         self.assertNotIn("PASS", result.stdout)
 
+    def test_init_workflow_composes_options_without_changing_generated_files(self):
+        for index, flags in enumerate(((), ("--vcpkg",), ("--import-std",),
+                                        ("--vcpkg", "--import-std"))):
+            with self.subTest(flags=flags):
+                case = self.root / str(index)
+                plain = case / "plain"
+                plain.mkdir(parents=True)
+                environment = {**self.env, "TMPDIR": str(case)}
+                baseline = run_cxx(plain, "init", "demo", "--no-git", *flags, env=environment)
+                self.assertEqual(baseline.returncode, 0, baseline.stderr)
+                self.assertEqual(list(case.glob("cxx-workflow-*")), [])
+                result = run_cxx(case, "init", "demo", "--no-git", *flags,
+                                 "--workflow", "san", env=environment)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("demo / san", result.stdout)
+                self.assertIn("PASS", result.stdout)
+                self.assertIn("Next:\n  cd demo", result.stdout)
+                self.assertNotIn("cmake --workflow --preset dev", result.stdout)
+                logs = list(case.glob("cxx-workflow-*/stdout.log"))
+                self.assertEqual(len(logs), 1, "must launch exactly one native workflow")
+                invocation = json.loads(logs[0].read_text().splitlines()[0])
+                self.assertEqual(invocation, {"argv": ["--workflow", "--preset", "san"],
+                                             "cwd": str(case / "demo"),
+                                             "probe": "unchanged environment"})
+                expected = {p.relative_to(plain / "demo"): p.read_bytes()
+                            for p in (plain / "demo").rglob("*") if p.is_file()}
+                actual = {p.relative_to(case / "demo"): p.read_bytes()
+                          for p in (case / "demo").rglob("*") if p.is_file()}
+                self.assertEqual(actual, expected)
+
+    def test_init_workflow_failure_keeps_project_and_prints_retry(self):
+        for mode, expected in (("failure", 47), ("missing", 127)):
+            with self.subTest(mode=mode):
+                if mode == "missing":
+                    (self.bin / "cmake").unlink()
+                result = run_cxx(self.root, "init", mode, "--no-git", "--workflow", "release",
+                                 env={**self.env, "CXX_FAKE_MODE": mode})
+                self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+                self.assertIn(f"Project kept: {self.root / mode}", result.stderr)
+                self.assertIn(f"cd {mode} && cxx workflow release", result.stderr)
+                self.assertNotIn("PASS", result.stdout)
+                self.assertNotIn("Next:", result.stdout)
+                self.assertTrue((self.root / mode / "src/main.cpp").is_file())
+
+    def test_init_errors_never_launch_workflow(self):
+        occupied = self.root / "occupied"
+        occupied.mkdir()
+        sentinel = occupied / "keep.txt"
+        sentinel.write_text("user content")
+        for args in (("demo", "--workflow"), ("demo", "--workflow", "unknown"),
+                     ("../outside", "--workflow", "dev"),
+                     ("occupied", "--workflow", "dev"),
+                     ("git-fails", "--workflow", "dev")):
+            with self.subTest(args=args):
+                # PATH contains only fake CMake: the last case fails during git init.
+                result = run_cxx(self.root, "init", *args, env=self.env)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertNotIn("Created C++ project:", result.stdout)
+                self.assertEqual(list(self.root.glob("cxx-workflow-*")), [])
+                self.assertFalse((self.root / "demo").exists())
+                self.assertFalse((self.root / "git-fails").exists())
+                self.assertEqual(sentinel.read_text(), "user content")
+
     @unittest.skipUnless(os.name == "posix", "POSIX signal exit convention")
     def test_child_signal_is_not_a_success(self):
         result = self.run_workflow("signal")
@@ -151,11 +214,15 @@ class WorkflowTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "posix", "POSIX process-group cleanup")
     def test_cancel_reaps_even_signal_ignoring_descendants(self):
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            with self.subTest(signal=sig):
-                pid_file = self.root / "child.pid"
+        for sig, init in ((signal.SIGINT, False), (signal.SIGTERM, False),
+                          (signal.SIGINT, True), (signal.SIGTERM, True)):
+            with self.subTest(signal=sig, init=init):
+                name = f"cancel-{sig}"
+                project = self.root / name if init else self.root
+                pid_file = project / "child.pid"
                 pid_file.unlink(missing_ok=True)
-                process = subprocess.Popen([sys.executable, str(CLI), "workflow", "custom"],
+                args = ["init", name, "--no-git", "--workflow", "dev"] if init else ["workflow", "custom"]
+                process = subprocess.Popen([sys.executable, str(CLI), *args],
                                            cwd=self.root, env={**self.env, "CXX_FAKE_MODE": "cancel"},
                                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 try:
@@ -170,6 +237,9 @@ class WorkflowTests(unittest.TestCase):
                     self.assertIn("CANCELLED", stdout)
                     self.assertEqual(stdout.count("Logs     "), 1)
                     self.assertNotIn("PASS", stdout)
+                    if init:
+                        self.assertTrue((project / "src/main.cpp").is_file())
+                        self.assertIn(f"cd {name} && cxx workflow dev", stderr)
                     # A killed orphan can briefly remain a zombie on Linux.
                     observed = subprocess.run(["/bin/ps", "-o", "stat=", "-p", str(child)],
                                               capture_output=True, text=True)

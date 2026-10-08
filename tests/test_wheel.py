@@ -104,16 +104,18 @@ class WheelReleaseTests(unittest.TestCase):
             for arguments in (("--help",), ("init", "--help")):
                 help_result = self.run_checked([str(executable), *arguments], cwd=workspace, env=environment)
                 self.assertEqual(help_result.stderr, "")
-                for option in ("--vcpkg", "--import-std", "--no-git"):
+                for option in ("--vcpkg", "--import-std", "--no-git", "--workflow"):
                     self.assertIn(option, help_result.stdout)
                 self.assertEqual(list(workspace.iterdir()), [])
             generation = self.run_checked(
                 [str(executable), "init", "release-smoke", *(["--import-std"] if import_std else []),
-                 *(["--vcpkg"] if vcpkg else [])],
+                 *(["--vcpkg"] if vcpkg else []), "--workflow", "dev"],
                 cwd=workspace,
                 env=environment,
             )
             self.assertIn("Created C++ project: release-smoke", generation.stdout)
+            self.assertIn("PASS", generation.stdout)
+            self.assertTrue((workspace / "release-smoke/build/dev/compile_commands.json").is_file())
 
             project = workspace / "release-smoke"
             self.assertTrue((project / "CMakeLists.txt").read_text().startswith(
