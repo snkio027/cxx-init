@@ -1,14 +1,20 @@
-"""A bounded, real clangd session for the generated project's diagnostics regression."""
+"""Bounded, real clangd diagnostics and navigation for generated projects."""
 
 import json
+from pathlib import Path
 import queue
 import subprocess
 import tempfile
 import threading
 import time
+from urllib.parse import unquote, urlparse
 
 
 def collect_diagnostics(project, environment, sources, *, path="src/main.cpp"):
+    return collect_evidence(project, environment, sources, path=path)["diagnostics"]
+
+
+def collect_evidence(project, environment, sources, *, path="src/main.cpp", definition_positions=()):
     uri = (project / path).as_uri()
     messages = queue.Queue()
     with tempfile.TemporaryFile() as log, subprocess.Popen(
@@ -75,12 +81,39 @@ def collect_diagnostics(project, environment, sources, *, path="src/main.cpp"):
                                    and message["params"].get("uri") == uri
                                    and message["params"].get("version") == version)
                 results.append(response["params"]["diagnostics"])
-            send("shutdown", None, 2)
-            receive(lambda message: message.get("id") == 2)
+            definitions = []
+            headers = {}
+            for request_id, position in enumerate(definition_positions, start=2):
+                send("textDocument/definition", {"textDocument": {"uri": uri},
+                                                 "position": position}, request_id)
+                response = receive(lambda message: message.get("id") == request_id)
+                locations = response["result"] or []
+                if isinstance(locations, dict):
+                    locations = [locations]
+                definitions.append(locations)
+                for location in locations:
+                    target_uri = location["uri"]
+                    if target_uri == uri or target_uri in headers:
+                        continue
+                    target = urlparse(target_uri)
+                    if target.scheme != "file" or target.netloc:
+                        raise AssertionError(f"unexpected definition URI: {target_uri}")
+                    # Open the returned header in this same client, as an editor's
+                    # goto-definition does; do not invent a separate compile command.
+                    send("textDocument/didOpen", {"textDocument": {
+                        "uri": target_uri, "languageId": "cpp", "version": 1,
+                        "text": Path(unquote(target.path)).read_text(),
+                    }})
+                    response = receive(lambda message: message.get("method") == "textDocument/publishDiagnostics"
+                                       and message["params"].get("uri") == target_uri
+                                       and message["params"].get("version") == 1)
+                    headers[target_uri] = response["params"]["diagnostics"]
+            send("shutdown", None, len(definition_positions) + 2)
+            receive(lambda message: message.get("id") == len(definition_positions) + 2)
             send("exit", None)
             if process.wait(timeout=10) != 0:
                 raise AssertionError("clangd exited unsuccessfully")
-            return results
+            return {"diagnostics": results, "definitions": definitions, "headers": headers}
         except Exception as error:
             log.seek(0)
             raise AssertionError(f"LSP diagnostics regression failed: {error}\n"
