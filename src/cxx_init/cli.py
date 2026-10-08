@@ -17,7 +17,7 @@ RESERVED_TARGETS = {
 FIXTURE_NAME = "robot-runtime"
 FIXTURE_IDENTIFIER = "robot_runtime"
 LOCAL_FIXTURE_ENTRIES = ("build", "CMakeUserPresets.json", ".DS_Store", ".idea", ".vscode")
-VERSION = "0.6.0"
+VERSION = "0.6.1"
 
 
 class GenerationError(Exception):
@@ -306,8 +306,6 @@ def main(argv=None):
             print(f"Project kept: {destination}", file=sys.stderr)
             print(f"Retry after fixing the cause: cd {args.name} && cxx workflow {args.workflow}",
                   file=sys.stderr)
-        else:
-            print(f"Next:\n  cd {args.name}")
         return result
     print()
     print("Next:")

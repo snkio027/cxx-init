@@ -41,6 +41,7 @@ restoration may access the network and CTest executes the starter. This is not a
 interactive application launch and does not install host tools. Configure `CXX`,
 `VCPKG_ROOT` and any import-std metadata before using the combined command.
 For editing, prefer `dev`: clangd still reads the development compilation database.
+On success, output ends with the workflow summary, without a `Next:` prompt.
 
 Generation errors never start a build. If the workflow fails or is cancelled, the
 command returns its nonzero status and keeps the project. Fix the reported cause,
@@ -318,7 +319,7 @@ Run the black-box test suite with:
 python3 -m unittest discover -s tests -v
 ```
 
-For the v0.6.0 release gate on the verified Mac toolchain, explicitly enable the
+For the v0.6.1 release gate on the verified Mac toolchain, explicitly enable the
 import-std and vcpkg artifact tests (otherwise they are reported as skipped, not verified).
 `VCPKG_ROOT` must point to the existing tested vcpkg checkout:
 
@@ -330,7 +331,7 @@ export CLANGD="$(brew --prefix llvm)/bin/clangd"
 export CLANG_TIDY="$(brew --prefix llvm)/bin/clang-tidy"
 uv build --no-sources
 CXX_TEST_CLANGD=1 CXX_TEST_IMPORT_STD=1 CXX_TEST_VCPKG=1 \
-CXX_TEST_DIST="$PWD/dist" CXX_RELEASE_TAG=v0.6.0 \
+CXX_TEST_DIST="$PWD/dist" CXX_RELEASE_TAG=v0.6.1 \
   python3 -m unittest discover -s tests -v
 ```
 
