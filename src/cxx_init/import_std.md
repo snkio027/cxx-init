@@ -6,11 +6,11 @@ named modules, partitions and header units are not part of this generated setup.
 
 ## Configure your existing toolchain
 
-Verified: Apple Silicon macOS, Homebrew LLVM/libc++ 23.1.2, CMake 4.4.3 and Ninja
+Verified: Apple Silicon macOS, Homebrew LLVM/libc++ 23.1.2, CMake 4.4.4 and Ninja
 1.13.2. These are tested versions, not minimum-version promises. This path requires
 macOS and upstream Clang (not AppleClang), libc++ module sources/metadata, Ninja,
-and a CMake version that accepts the experimental gate. Its CMake minimum is 4.4;
-the gate was checked with 4.4.3, so recheck it when upgrading CMake.
+and a CMake version that accepts the experimental gate. Its CMake minimum is 4.4.4;
+the gate was checked with 4.4.4, so recheck it when upgrading CMake.
 
 With those tools already installed, run in this project:
 

@@ -64,6 +64,13 @@ If not, defer it.
 
 ## Current scope
 
+Approved on 2026-10-09: modernize generated CMake projects to the current stable
+CMake 4.4.4 baseline, including preset structure, documentation and artifact tests.
+Keep C++23, existing CLI options and the dev/san/release workflows. Do not migrate
+existing projects, install host tools, expand the artifact types or publish without
+separate authorization. This narrowly authorizes the CMake architecture changes
+described in docs/architecture.md; other implementation boundaries remain intact.
+
 Approved on 2026-10-07: add optional `cxx workflow <preset> [--verbose]`.
 Delegate to one native `cmake --workflow --preset <preset>` process; CMake owns
 presets, ordering, failure propagation and dependencies. Only presentation,

@@ -37,6 +37,7 @@ class CxxTests(unittest.TestCase):
                     self.assertIn("C++23", result.stdout)
                     self.assertEqual(list(workspace.iterdir()), [])
                     if arguments[0] == "init":
+                        self.assertIn("CMake >= 4.4.4", result.stdout)
                         self.assertIn("std::println", result.stdout)
                         self.assertIn("VCPKG_ROOT", result.stdout)
                         self.assertIn("existing vcpkg checkout", result.stdout)
@@ -94,6 +95,28 @@ class CxxTests(unittest.TestCase):
             )
             self.assertNotIn("robot-runtime", generated_text)
             self.assertNotIn("robot_runtime", generated_text)
+
+    def test_cmake_baseline_and_native_preset_visibility(self):
+        for flags in ((), ("--import-std",), ("--vcpkg",), ("--import-std", "--vcpkg")):
+            with self.subTest(flags=flags), tempfile.TemporaryDirectory() as temporary:
+                workspace = Path(temporary)
+                result = run_cxx(workspace, "init", "demo", "--no-git", *flags,
+                                 env={**os.environ, "PATH": ""})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                project = workspace / "demo"
+                cmake = (project / "CMakeLists.txt").read_text()
+                self.assertTrue(cmake.startswith("cmake_minimum_required(VERSION 4.4.4)\n"))
+                self.assertEqual("CXX_SCAN_FOR_MODULES ON" in cmake, "--import-std" in flags)
+                self.assertEqual("CXX_SCAN_FOR_MODULES OFF" in cmake, "--import-std" not in flags)
+                presets = json.loads((project / "CMakePresets.json").read_text())
+                self.assertEqual(presets["version"], 12)
+                self.assertEqual(presets["cmakeMinimumRequired"], {"major": 4, "minor": 4, "patch": 4})
+                for tool, argument in (("cmake", "--list-presets=all"), ("ctest", "--list-presets")):
+                    listed = subprocess.run([tool, argument], cwd=project, capture_output=True, text=True)
+                    self.assertEqual(listed.returncode, 0, listed.stdout + listed.stderr)
+                    self.assertNotIn('"base"', listed.stdout)
+                    for preset in ("dev", "san", "release"):
+                        self.assertIn(f'"{preset}"', listed.stdout)
 
     def test_initializes_git_by_default(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -310,6 +333,41 @@ class CxxTests(unittest.TestCase):
                 self.assertIn("failure_demo.smoke", result.stdout)
                 self.assertIn(diagnostic, result.stdout + result.stderr)
 
+    def test_native_test_preparation_and_empty_test_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            generation = run_cxx(workspace, "init", "prep-demo", "--no-git")
+            self.assertEqual(generation.returncode, 0, generation.stderr)
+            project = workspace / "prep-demo"
+            # Start from fresh build trees: CMake leaves old CTest files behind
+            # when testing is disabled after a previous testing-enabled configure.
+            for preset in ("dev", "san", "release"):
+                configured = subprocess.run(["cmake", "--preset", preset, "-DBUILD_TESTING=OFF"],
+                                            cwd=project, capture_output=True, text=True)
+                self.assertEqual(configured.returncode, 0, configured.stdout + configured.stderr)
+                result = subprocess.run(["ctest", "--preset", preset], cwd=project,
+                                        capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("No tests were found", result.stdout + result.stderr)
+            for command in (["cmake", "--preset", "dev"],
+                            ["cmake", "--build", "--preset", "dev", "--target", "test_prep/all"],
+                            ["ctest", "--preset", "dev"]):
+                result = subprocess.run(command, cwd=project, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            # Preparation must rebuild the actual test executable after an edit.
+            source = project / "src/main.cpp"
+            source.write_text(source.read_text().replace("return 0;", "return 47;"))
+            build = subprocess.run(
+                ["cmake", "--build", "--preset", "dev", "--target", "test_prep/prep_demo.smoke"],
+                cwd=project, capture_output=True, text=True,
+            )
+            self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
+            result = subprocess.run(["ctest", "--preset", "dev"], cwd=project,
+                                    capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("prep_demo.smoke", result.stdout)
+            self.assertIn("Hello from prep-demo!", result.stdout)
+
     def test_workflows_restore_their_build_scenario(self):
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
@@ -342,6 +400,7 @@ class CxxTests(unittest.TestCase):
                     self.assertIn(cache["ENABLE_SANITIZERS:BOOL"],
                                   ("ON", "TRUE", "1") if sanitizers else ("OFF", "FALSE", "0"))
                     commands = json.loads((build / "compile_commands.json").read_text())
+                    self.assertNotIn("CXX_SCAN__", (build / "build.ninja").read_text())
                     for command in commands:
                         self.assertEqual(Path(command["directory"]).resolve(), build.resolve())
                         self.assertEqual("-fsanitize=address,undefined" in command["command"], sanitizers)

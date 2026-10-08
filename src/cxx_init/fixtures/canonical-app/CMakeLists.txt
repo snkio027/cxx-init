@@ -1,14 +1,15 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 4.4.4)
 
 project(robot_runtime LANGUAGES CXX)
 
 option(ENABLE_SANITIZERS "Enable address and undefined behavior sanitizers" OFF)
 
-include(CTest)
-
 add_executable(robot_runtime src/main.cpp)
 target_compile_features(robot_runtime PRIVATE cxx_std_23)
-set_target_properties(robot_runtime PROPERTIES CXX_EXTENSIONS OFF)
+set_target_properties(robot_runtime PROPERTIES
+    CXX_EXTENSIONS OFF
+    CXX_SCAN_FOR_MODULES OFF
+)
 
 if(MSVC)
     target_compile_options(robot_runtime PRIVATE /W4 /permissive-)
@@ -29,6 +30,7 @@ if(ENABLE_SANITIZERS)
     endif()
 endif()
 
+include(CTest)
 if(BUILD_TESTING)
     # Exercise the actual app; a nonzero exit or timeout is a test failure.
     add_test(NAME robot_runtime.smoke COMMAND robot_runtime)

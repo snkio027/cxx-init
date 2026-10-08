@@ -112,7 +112,9 @@ class VcpkgTests(unittest.TestCase):
                 self.assertEqual(json.loads((project / "vcpkg.json").read_text()),
                                  {"builtin-baseline": BASELINE, "dependencies": []})
                 presets = json.loads((project / "CMakePresets.json").read_text())
-                cache = presets["configurePresets"][0]["cacheVariables"]
+                base = next(item for item in presets["configurePresets"] if item["name"] == "base")
+                self.assertTrue(base["hidden"])
+                cache = base["cacheVariables"]
                 self.assertEqual(cache["CMAKE_TOOLCHAIN_FILE"],
                                  "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
                 self.assertEqual("CMAKE_CXX_STDLIB_MODULES_JSON" in cache, module)

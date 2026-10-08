@@ -53,10 +53,10 @@ Use cxx workflow <preset> for a concise view of an existing CMake workflow.""",
   cd demo
   cmake --workflow --preset dev
 
-Build prerequisites: CMake >= 3.25, Ninja and a C++23 compiler/standard library
+Build prerequisites: CMake >= 4.4.4, Ninja and a C++23 compiler/standard library
 with <print> and std::println support.
 --vcpkg requires VCPKG_ROOT to point to an existing vcpkg checkout at configure time.
---import-std requires CMake 4.4 and macOS + Homebrew LLVM/libc++; set CXX and
+--import-std requires macOS + Homebrew LLVM/libc++; set CXX and
 CMAKE_CXX_STDLIB_MODULES_JSON as described in the generated README.md.
 Generation does not install tools, download dependencies or build the project.""",
     )
@@ -157,9 +157,7 @@ def initialize_git(root):
 
 def enable_import_std(root):
     # Specialize the shared fixture; do not maintain a second project template.
-    prefix = '''cmake_minimum_required(VERSION 4.4)
-
-# Experimental gate verified with CMake 4.4.3; recheck when upgrading CMake.
+    prefix = '''# Experimental gate verified with CMake 4.4.4; recheck when upgrading CMake.
 set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "f35a9ac6-8463-4d38-8eec-5d6008153e7d")
 if(NOT EXISTS "${CMAKE_CXX_STDLIB_MODULES_JSON}")
     message(FATAL_ERROR
@@ -175,10 +173,9 @@ if(NOT "23" IN_LIST CMAKE_CXX_COMPILER_IMPORT_STD)
     message(FATAL_ERROR "The selected toolchain does not provide C++23 import std support")
 endif()'''
     changes = (
-        ("CMakeLists.txt", "cmake_minimum_required(VERSION 3.25)\n\n"
-         "project(robot_runtime LANGUAGES CXX)", prefix),
-        ("CMakeLists.txt", "PROPERTIES CXX_EXTENSIONS OFF)",
-         "PROPERTIES CXX_EXTENSIONS OFF CXX_MODULE_STD ON)"),
+        ("CMakeLists.txt", "project(robot_runtime LANGUAGES CXX)", prefix),
+        ("CMakeLists.txt", "CXX_SCAN_FOR_MODULES OFF",
+         "CXX_SCAN_FOR_MODULES ON\n    CXX_MODULE_STD ON"),
         ("src/main.cpp", "#include <print>", "import std;"),
         (".clangd", "MissingIncludes: Strict", "MissingIncludes: None"),
     )
@@ -191,9 +188,8 @@ endif()'''
 
     presets_path = root / "CMakePresets.json"
     presets = json.loads(presets_path.read_text(encoding="utf-8"))
-    presets["cmakeMinimumRequired"] = {"major": 4, "minor": 4, "patch": 0}
-    dev = next(preset for preset in presets["configurePresets"] if preset["name"] == "dev")
-    dev["cacheVariables"]["CMAKE_CXX_STDLIB_MODULES_JSON"] = "$env{CMAKE_CXX_STDLIB_MODULES_JSON}"
+    base = next(preset for preset in presets["configurePresets"] if preset["name"] == "base")
+    base["cacheVariables"]["CMAKE_CXX_STDLIB_MODULES_JSON"] = "$env{CMAKE_CXX_STDLIB_MODULES_JSON}"
     presets_path.write_text(json.dumps(presets, indent=2) + "\n", encoding="utf-8")
     provenance = root / ".cxx.toml"
     provenance.write_text(provenance.read_text() + 'stdlib = "import-std"\n', encoding="utf-8")
@@ -209,8 +205,8 @@ def enable_vcpkg(root):
     (root / "vcpkg.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     presets_path = root / "CMakePresets.json"
     presets = json.loads(presets_path.read_text(encoding="utf-8"))
-    dev = next(preset for preset in presets["configurePresets"] if preset["name"] == "dev")
-    dev["cacheVariables"]["CMAKE_TOOLCHAIN_FILE"] = "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+    base = next(preset for preset in presets["configurePresets"] if preset["name"] == "base")
+    base["cacheVariables"]["CMAKE_TOOLCHAIN_FILE"] = "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
     presets_path.write_text(json.dumps(presets, indent=2) + "\n", encoding="utf-8")
     cmake = root / "CMakeLists.txt"
     content = cmake.read_text(encoding="utf-8")
