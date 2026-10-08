@@ -74,6 +74,13 @@ Do not add compiler/dependency wrappers, host discovery, generated files or defa
 build behavior. Document compiler/preset ownership. Push a review PR; merge,
 publication and daily activation require separate authorization for this increment.
 
+The owner subsequently authorized merge, release as v0.6.0 and local activation on
+2026-10-09. Standing delivery authorization now covers future owner-approved changes:
+after the complete applicable tests pass, continue through a PR, merge, publication
+and targeted local synchronization without asking again for each delivery step.
+Preserve user changes; do not bypass required gates or broaden the approved feature
+or side-effect scope. New architecture/scope decisions still require approval.
+
 Approved on 2026-10-09: modernize generated CMake projects to the current stable
 CMake 4.4.4 baseline, including preset structure, documentation and artifact tests.
 Keep C++23, existing CLI options and the dev/san/release workflows. Do not migrate
@@ -126,12 +133,14 @@ explicit vcpkg checks with a compiled dependency, including import-std compositi
 existing Ubuntu and Trusted Publishing gates
 ```
 
-Publishing requires explicit release authorization; never bypass failed gates or add credentials.
+Publishing requires owner authorization, including the standing delivery policy above;
+never bypass failed gates or add credentials.
 The approved dependency integration is explicit `cxx init <name> --vcpkg`,
 including composition with `--import-std`. Preserve its dependency contract: offline
 generation, unchanged default fixture, project-owned fixed baseline, existing
 environment-supplied toolchain, no dependency wrappers. The workflow presentation
-exception above does not change generation. Future releases require new authorization.
+exception above does not change generation. Releases outside the standing delivery
+authorization still require new approval.
 Do not introduce `--modules`, custom named modules, module partitions, header units or profiles.
 Do not add `lib`, `header-only`, Homebrew, standalone binaries, self-update or auto-versioning.
 
