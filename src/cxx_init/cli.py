@@ -35,9 +35,10 @@ def parse_args(argv):
   cxx init demo --import-std         # experimental C++23 import std
   cxx init demo --no-git             # skip local git init
   cxx init demo --vcpkg --import-std  # options can be combined
+  cxx init demo --workflow dev       # create, then configure/build/test
 
 Run cxx init --help for all options and build prerequisites.
-Generation is offline; building and dependency installation are separate steps.
+Generation is offline; --workflow explicitly runs a subsequent build/test step.
 Use cxx workflow <preset> for a concise view of an existing CMake workflow.""",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
@@ -58,7 +59,9 @@ with <print> and std::println support.
 --vcpkg requires VCPKG_ROOT to point to an existing vcpkg checkout at configure time.
 --import-std requires macOS + Homebrew LLVM/libc++; set CXX and
 CMAKE_CXX_STDLIB_MODULES_JSON as described in the generated README.md.
-Generation does not install tools, download dependencies or build the project.""",
+Generation does not install tools, download dependencies or build the project.
+--workflow runs after generation and may download/build dependencies and run tests.
+Set the required environment before invoking it; failed builds keep the project.""",
     )
     init_parser.add_argument(
         "name", help="directory name: [a-z][a-z0-9-]*; reserved CMake targets excluded",
@@ -76,6 +79,10 @@ Generation does not install tools, download dependencies or build the project.""
         "--no-git",
         action="store_true",
         help="do not initialize a local Git repository",
+    )
+    init_parser.add_argument(
+        "--workflow", choices=("dev", "san", "release"),
+        help="after creation, run a generated CMake workflow (configure, build, test)",
     )
 
     workflow = commands.add_parser(
@@ -270,13 +277,14 @@ def create_app(name, use_git, import_std=False, vcpkg=False):
 def main(argv=None):
     args = parse_args(argv)
 
-    if args.command == "workflow":
+    if args.command == "workflow" or args.workflow is not None:
         # Also support the existing direct cli.py invocation used by source tests.
         if __package__:
             from .workflow import run_workflow
         else:
             from workflow import run_workflow
-        return run_workflow(args.preset, verbose=args.verbose)
+        if args.command == "workflow":
+            return run_workflow(args.preset, verbose=args.verbose)
 
     try:
         destination = create_app(args.name, use_git=not args.no_git,
@@ -291,6 +299,16 @@ def main(argv=None):
         print("Verified toolchain: macOS + Homebrew LLVM (see README.md)")
     if args.vcpkg:
         print("Dependencies: explicit vcpkg manifest (empty; fixed baseline, see README.md)")
+    if args.workflow is not None:
+        sys.stdout.flush()
+        result = run_workflow(args.workflow, cwd=destination)
+        if result != 0:
+            print(f"Project kept: {destination}", file=sys.stderr)
+            print(f"Retry after fixing the cause: cd {args.name} && cxx workflow {args.workflow}",
+                  file=sys.stderr)
+        else:
+            print(f"Next:\n  cd {args.name}")
+        return result
     print()
     print("Next:")
     print(f"  cd {args.name}")

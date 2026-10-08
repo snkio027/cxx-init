@@ -148,7 +148,8 @@ def _stop(process):
         _send(process, signal.SIGKILL)
 
 
-def run_workflow(preset, *, verbose=False):
+def run_workflow(preset, *, verbose=False, cwd=None):
+    root = Path.cwd() if cwd is None else Path(cwd)
     display = _Display(verbose, preset)
     started = time.monotonic()
     command = ["cmake", "--workflow", "--preset", preset]
@@ -161,7 +162,7 @@ def run_workflow(preset, *, verbose=False):
     except OSError as error:
         print(f"cxx: cannot create logs: {error}", file=sys.stderr)
         return 1
-    display.say("\n  " + display.paint(Path.cwd().name, "1") + display.paint(f" / {preset}\n", "90"))
+    display.say("\n  " + display.paint(root.name, "1") + display.paint(f" / {preset}\n", "90"))
 
     def cancel(signum, _frame):
         nonlocal cancelled
@@ -173,7 +174,7 @@ def run_workflow(preset, *, verbose=False):
                 previous_handlers[sig] = signal.signal(sig, cancel)
             # No shell, environment overrides, preset reads or synthetic build steps.
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                       start_new_session=os.name == "posix")
+                                       cwd=root, start_new_session=os.name == "posix")
             messages = queue.Queue(maxsize=32)
             for name in ("stdout", "stderr"):
                 threading.Thread(target=_read, args=(getattr(process, name), name, messages), daemon=True).start()

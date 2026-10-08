@@ -64,6 +64,16 @@ If not, defer it.
 
 ## Current scope
 
+Approved on 2026-10-09: add `cxx init <name> --workflow <dev|san|release>`.
+Default init and the generation phase remain offline and unchanged. Only after
+successful generation may this explicit option delegate to the existing workflow
+presentation in the new project directory, with the caller's environment. Keep the
+project on workflow failure/cancellation, propagate its status and print a retry
+command. CMake may restore dependencies and run tests in this opt-in second phase.
+Do not add compiler/dependency wrappers, host discovery, generated files or default
+build behavior. Document compiler/preset ownership. Push a review PR; merge,
+publication and daily activation require separate authorization for this increment.
+
 Approved on 2026-10-09: modernize generated CMake projects to the current stable
 CMake 4.4.4 baseline, including preset structure, documentation and artifact tests.
 Keep C++23, existing CLI options and the dev/san/release workflows. Do not migrate

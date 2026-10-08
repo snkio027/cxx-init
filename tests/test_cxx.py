@@ -32,7 +32,7 @@ class CxxTests(unittest.TestCase):
                     result = run_cxx(workspace, *arguments)
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual(result.stderr, "")
-                    for option in ("--vcpkg", "--import-std", "--no-git"):
+                    for option in ("--vcpkg", "--import-std", "--no-git", "--workflow"):
                         self.assertIn(option, result.stdout)
                     self.assertIn("C++23", result.stdout)
                     self.assertEqual(list(workspace.iterdir()), [])

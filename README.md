@@ -26,6 +26,27 @@ The generated project uses normal C++ tooling directly and does not depend on `c
 Its starter uses `<print>` and `std::println("Hello from hello!")`; the output
 still ends with exactly one newline. `--import-std` uses the same call via `import std;`.
 
+To create and immediately configure, build and test in one command:
+
+```bash
+cxx init hello --workflow dev
+# Also supported: --workflow san or --workflow release
+# With an existing configured vcpkg checkout:
+cxx init demo --vcpkg --workflow dev
+```
+
+Without `--workflow`, init remains offline and stops after generation. With it,
+CMake runs in the completed project using your existing environment; dependency
+restoration may access the network and CTest executes the starter. This is not an
+interactive application launch and does not install host tools. Configure `CXX`,
+`VCPKG_ROOT` and any import-std metadata before using the combined command.
+For editing, prefer `dev`: clangd still reads the development compilation database.
+
+Generation errors never start a build. If the workflow fails or is cancelled, the
+command returns its nonzero status and keeps the project. Fix the reported cause,
+then retry inside it, for example `cd hello && cxx workflow dev`; do not rerun init
+over that nonempty directory. `cxx workflow dev --verbose` shows full native output.
+
 Upgrade or uninstall the tool with:
 
 ```bash
@@ -221,6 +242,8 @@ Choose a compiler before the first configure of each build directory. For exampl
 
 ```bash
 CXX=/opt/homebrew/opt/llvm/bin/clang++ cmake --workflow --preset dev
+# Or select it for a new project's first workflow:
+CXX=/opt/homebrew/opt/llvm/bin/clang++ cxx init demo --workflow dev
 ```
 
 CMake caches that choice; changing `CXX` later does not switch an already configured directory.
@@ -228,6 +251,15 @@ Use a separate build directory when comparing compilers. Machine-specific paths 
 can be recorded in the ignored `CMakeUserPresets.json`; no extra config is needed for normal use.
 If an explicit compiler experiment uses another compilation database, select it explicitly in
 clangd as well. Project style and diagnostic preferences remain fixed in the template.
+
+Library dependencies remain project-owned: add a port to `vcpkg.json`, use its
+`find_package(... CONFIG REQUIRED)` and `target_link_libraries` target in CMake,
+and include the library's public headers in source. Do not duplicate include paths
+in `.clangd`. Switching the application's `CXX` does not automatically switch the
+compiler used to build vcpkg ports; coordinated compiler/standard-library/ABI
+changes require the appropriate triplet and chainload toolchain, not another cxx flag.
+See [CMake compiler selection](https://cmake.org/cmake/help/v4.4/envvar/CXX.html)
+and [vcpkg toolchain integration](https://learn.microsoft.com/en-us/vcpkg/users/buildsystems/cmake-integration).
 
 ## Design priorities
 
