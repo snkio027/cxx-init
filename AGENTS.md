@@ -70,6 +70,10 @@ Keep C++23, existing CLI options and the dev/san/release workflows. Do not migra
 existing projects, install host tools, expand the artifact types or publish without
 separate authorization. This narrowly authorizes the CMake architecture changes
 described in docs/architecture.md; other implementation boundaries remain intact.
+The owner subsequently authorized merge, publication and local activation on
+2026-10-09. Publish this CMake minimum-version change as v0.5.0 after the complete
+Mac release gate and Ubuntu/Trusted Publishing gate pass. Local activation upgrades
+only cxx-init; preserve user drafts and do not rewrite existing generated projects.
 
 Approved on 2026-10-07: add optional `cxx workflow <preset> [--verbose]`.
 Delegate to one native `cmake --workflow --preset <preset>` process; CMake owns
