@@ -286,7 +286,7 @@ Run the black-box test suite with:
 python3 -m unittest discover -s tests -v
 ```
 
-For the v0.4.2 release gate on the verified Mac toolchain, explicitly enable the
+For the v0.5.0 release gate on the verified Mac toolchain, explicitly enable the
 import-std and vcpkg artifact tests (otherwise they are reported as skipped, not verified).
 `VCPKG_ROOT` must point to the existing tested vcpkg checkout:
 
@@ -298,7 +298,7 @@ export CLANGD="$(brew --prefix llvm)/bin/clangd"
 export CLANG_TIDY="$(brew --prefix llvm)/bin/clang-tidy"
 uv build --no-sources
 CXX_TEST_CLANGD=1 CXX_TEST_IMPORT_STD=1 CXX_TEST_VCPKG=1 \
-CXX_TEST_DIST="$PWD/dist" CXX_RELEASE_TAG=v0.4.2 \
+CXX_TEST_DIST="$PWD/dist" CXX_RELEASE_TAG=v0.5.0 \
   python3 -m unittest discover -s tests -v
 ```
 
