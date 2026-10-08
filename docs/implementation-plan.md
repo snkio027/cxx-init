@@ -261,3 +261,8 @@ execution, missing CMake, native nonzero status, cancellation and an actionable
 retry without deleting the project. Extend the installed-wheel gate to actually
 create and build through the new entry before the existing artifact checks.
 Deliver through a PR; do not merge, publish or activate without further approval.
+
+The owner gave that approval on 2026-10-09: merge the reviewed feature, release
+v0.6.0 after the complete Mac and Ubuntu/Trusted Publishing gates, then activate
+only cxx-init locally. Future owner-approved work follows the standing delivery
+authorization recorded in AGENTS.md; scope expansion is not implicitly approved.
