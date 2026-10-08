@@ -154,6 +154,22 @@ Passing either does not imply complete completion, indexing, navigation or renam
 
 ### Single source of build semantics
 
+The 2026-10-09 approved CMake modernization raises the new-project minimum to
+CMake 4.4.4 and adopts preset schema 12. A hidden configure base owns shared build
+settings; dev/release specialize it independently, and san specializes dev.
+Each preset expands its own `build/${presetName}`. Explicit dependency/toolchain
+and module metadata inputs belong to that shared base. One hidden test base owns
+the existing fail-closed CTest policy and automatic parallelism. Ninja's native
+test-preparation targets are enabled, not a new custom test runner. Workflows still
+configure, build and test in that order. CTest alone does not compile.
+
+The single app target retains private compiler/sanitizer flags and C++23 features.
+Header projects disable C++ module scanning on that target; the opt-in import-std
+specialization explicitly enables scanning and standard-library modules. No new
+generated files, helper target framework, automatic migration or host installation
+is introduced. The explicit macOS SDK setting remains to preserve compilation
+database context for clangd. The release gate selects CMake 4.4.4 explicitly.
+
 CMake owns build semantics.
 
 ```text

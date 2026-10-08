@@ -24,14 +24,21 @@ jobs:
       - name: Build distributions
         run: uv build --no-sources
 
-      - name: Verify the wheel
+      - name: Select the verified CMake baseline
+        run: |
+          uv tool install "cmake==4.4.4"
+          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+
+      - name: Verify the wheel and generated project contracts
         env:
           # Ubuntu 24.04's default GCC 13 has no <print>; GCC 14 is preinstalled.
           CXX: g++-14
           # Test the distributions uploaded below; do not build a second wheel.
           CXX_TEST_DIST: ${{ github.workspace }}/dist
           CXX_RELEASE_TAG: ${{ github.ref_name }}
-        run: python3 -m unittest discover -s tests -p test_wheel.py -v
+        run: |
+          cmake --version
+          python3 -m unittest discover -s tests -v
 
       - name: Upload distributions
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

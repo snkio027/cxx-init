@@ -1,29 +1,36 @@
 {
-  "version": 6,
+  "version": 12,
   "cmakeMinimumRequired": {
-    "major": 3,
-    "minor": 25,
-    "patch": 0
+    "major": 4,
+    "minor": 4,
+    "patch": 4
   },
   "configurePresets": [
     {
-      "name": "dev",
-      "displayName": "Development",
+      "name": "base",
+      "hidden": true,
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/dev",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "BUILD_TESTING": true,
         "ENABLE_SANITIZERS": false,
-        "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+        "CMAKE_TEST_BUILD_DEPENDS": true,
         "CMAKE_OSX_SYSROOT": "macosx"
+      }
+    },
+    {
+      "name": "dev",
+      "displayName": "Development",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
       }
     },
     {
       "name": "san",
       "displayName": "Sanitizers",
       "inherits": "dev",
-      "binaryDir": "${sourceDir}/build/san",
       "cacheVariables": {
         "ENABLE_SANITIZERS": true
       }
@@ -31,8 +38,7 @@
     {
       "name": "release",
       "displayName": "Release",
-      "inherits": "dev",
-      "binaryDir": "${sourceDir}/build/release",
+      "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
@@ -54,30 +60,30 @@
   ],
   "testPresets": [
     {
-      "name": "dev",
-      "configurePreset": "dev",
+      "name": "base",
+      "hidden": true,
       "output": {
         "outputOnFailure": true
       },
       "execution": {
         "noTestsAction": "error",
-        "stopOnFailure": true
+        "stopOnFailure": true,
+        "jobs": ""
       }
+    },
+    {
+      "name": "dev",
+      "inherits": "base",
+      "configurePreset": "dev"
     },
     {
       "name": "san",
-      "configurePreset": "san",
-      "output": {
-        "outputOnFailure": true
-      },
-      "execution": {
-        "noTestsAction": "error",
-        "stopOnFailure": true
-      }
+      "inherits": "base",
+      "configurePreset": "san"
     },
     {
       "name": "release",
-      "inherits": "dev",
+      "inherits": "base",
       "configurePreset": "release"
     }
   ],

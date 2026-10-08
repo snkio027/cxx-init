@@ -35,12 +35,12 @@ uv tool uninstall cxx-init
 
 ## Requirements
 
-`cxx` requires Python 3.10 or newer. Generated projects require CMake 3.25 or newer,
+`cxx` requires Python 3.10 or newer. Newly generated projects require CMake 4.4.4 or newer,
 Ninja, and a C++23 compiler/standard library providing `<print>` and `std::println`.
 For example, [libc++ 18+](https://libcxx.llvm.org/Status/Cxx23.html) and
 [libstdc++ 14+](https://gcc.gnu.org/gcc-14/changes.html) provide formatted output;
 selecting `-std=c++23` alone does not add missing standard-library features.
-The Ubuntu release gate explicitly selects the runner's preinstalled `g++-14`.
+The Ubuntu release gate explicitly selects CMake 4.4.4 and the runner's preinstalled `g++-14`.
 Older standard libraries are not given an iostream fallback. Windows toolchains
 remain unverified; GCC 14 on Windows additionally requires `-lstdc++exp`.
 
@@ -56,9 +56,9 @@ cmake --workflow --preset dev
 
 This opt-in replaces standard headers with C++23 `import std;`; the ordinary command
 and its generated files are unchanged. It is **experimental**, currently verified only
-on Apple Silicon macOS with Homebrew LLVM/libc++ 23.1.2, CMake 4.4.3 and Ninja 1.13.2.
-Verified versions are not a blanket compatibility promise. The opt-in project's CMake
-minimum is 4.4 and its experimental gate must be rechecked when upgrading CMake.
+on Apple Silicon macOS with Homebrew LLVM/libc++ 23.1.2, CMake 4.4.4 and Ninja 1.13.2.
+Verified versions are not a blanket compatibility promise. The opt-in shares the
+CMake 4.4.4 minimum; its experimental gate must be rechecked when upgrading CMake.
 
 The shared dev/san/release workflows, CTest and clang configs remain in use, with one
 project-local exception: import-std sets `Diagnostics.MissingIncludes: None` because
@@ -120,6 +120,35 @@ Each workflow configures, builds, and runs CTest:
 
 The configure step restores the preset's sanitizer setting even after a manual cache override.
 `release` is a local optimized build, not a packaging or publishing command.
+
+### CMake 4.4 structure
+
+New projects use [CMake 4.4.4](https://cmake.org/cmake/help/v4.4/release/4.4.html)
+and preset schema 12. This replaces the previous 3.25 minimum; older CMake versions
+are no longer supported for new projects. Upgrading cxx-init does not migrate existing projects.
+
+- A hidden configure `base` owns Ninja, compilation databases, SDK and shared options.
+  `dev` and `release` inherit it independently; `san` specializes `dev`.
+- `build/${presetName}` keeps each configuration (including inherited user presets)
+  in its own directory. Toolchain and module metadata opt-ins extend `base`, not `dev`.
+- C++23, warnings and sanitizers remain target-local. Header projects do not run
+  module dependency scanning; only `--import-std` enables it and `CXX_MODULE_STD`.
+- A hidden test `base` owns failure output, stop-on-failure and empty-suite failure.
+  CTest chooses parallelism automatically; use `ctest --preset dev -j 4` or a
+  user test preset's `execution.jobs` to override it (this field takes precedence
+  over `CTEST_PARALLEL_LEVEL`).
+- CMake 4.4's native Ninja test-preparation targets are enabled. To build only the
+  dependencies of registered tests, then run them:
+
+  ```sh
+  cmake --preset dev
+  cmake --build --preset dev --target test_prep/all
+  ctest --preset dev
+  ```
+
+  `ctest` alone still does not build. The normal three-step workflows are unchanged.
+  A fresh build directory configured with testing disabled remains buildable, but
+  its test preset fails rather than reporting a false success for an empty suite.
 
 ### Terminal summary (v0.4.0)
 

@@ -116,6 +116,11 @@ class WheelReleaseTests(unittest.TestCase):
             self.assertIn("Created C++ project: release-smoke", generation.stdout)
 
             project = workspace / "release-smoke"
+            self.assertTrue((project / "CMakeLists.txt").read_text().startswith(
+                "cmake_minimum_required(VERSION 4.4.4)\n"))
+            presets = json.loads((project / "CMakePresets.json").read_text())
+            self.assertEqual(presets["version"], 12)
+            self.assertEqual(presets["cmakeMinimumRequired"], {"major": 4, "minor": 4, "patch": 4})
             source = (project / "src/main.cpp").read_text()
             self.assertIn("std::println(", source, "generated app must use std::println")
             self.assertIn("import std;" if import_std else "#include <print>", source.splitlines())
