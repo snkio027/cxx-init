@@ -1,6 +1,10 @@
-name: Publish release
+name: Verify Linux and publish release
 
 on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
   release:
     types: [published]
 
@@ -8,11 +12,12 @@ jobs:
   build:
     name: Build and verify distributions
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     permissions:
       contents: read
 
     steps:
-      - name: Check out the release tag
+      - name: Check out the candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install uv
@@ -27,17 +32,45 @@ jobs:
       - name: Select the verified CMake baseline
         run: |
           uv tool install "cmake==4.4.4"
-          echo "$(uv tool dir --bin)" >> "$GITHUB_PATH"
+          uv tool dir --bin >> "$GITHUB_PATH"
+
+      - name: Prepare isolated Linux integration tools
+        run: |
+          curl --fail --location --retry 3 \
+            https://github.com/clangd/clangd/releases/download/23.1.0/clangd-linux-23.1.0.zip \
+            --output "$RUNNER_TEMP/clangd.zip"
+          echo "e53b1a96196095faedb7642cf64964f7fb9ad4a0c1f00dd2c172a3d9dcbafdfd  $RUNNER_TEMP/clangd.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/clangd.zip" -d "$RUNNER_TEMP"
+          echo "CLANGD=$RUNNER_TEMP/clangd_23.1.0/bin/clangd" >> "$GITHUB_ENV"
+          git init "$RUNNER_TEMP/cxx-vcpkg"
+          git -C "$RUNNER_TEMP/cxx-vcpkg" remote add origin https://github.com/microsoft/vcpkg.git
+          git -C "$RUNNER_TEMP/cxx-vcpkg" fetch --depth 1 origin 434307da09bc05b2c86996dccc8b2351fc0d5d37
+          git -C "$RUNNER_TEMP/cxx-vcpkg" checkout --detach FETCH_HEAD
+          "$RUNNER_TEMP/cxx-vcpkg/bootstrap-vcpkg.sh" -disableMetrics
+          echo "VCPKG_ROOT=$RUNNER_TEMP/cxx-vcpkg" >> "$GITHUB_ENV"
 
       - name: Verify the wheel and generated project contracts
         env:
           # Ubuntu 24.04's default GCC 13 has no <print>; GCC 14 is preinstalled.
           CXX: g++-14
+          CC: gcc-14
+          CXX_TEST_CLANGD: "1"
+          CXX_TEST_VCPKG: "1"
+          # Require a real dependency build, not a pre-existing binary-cache hit.
+          VCPKG_BINARY_SOURCES: clear
           # Test the distributions uploaded below; do not build a second wheel.
           CXX_TEST_DIST: ${{ github.workspace }}/dist
-          CXX_RELEASE_TAG: ${{ github.ref_name }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" = release ]; then
+            CXX_RELEASE_TAG="$GITHUB_REF_NAME"
+          else
+            CXX_RELEASE_TAG="v$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          fi
+          export CXX_RELEASE_TAG
           cmake --version
+          "$CXX" --version
+          "$CLANGD" --version
+          "$VCPKG_ROOT/vcpkg" version
           python3 -m unittest discover -s tests -v
 
       - name: Upload distributions
@@ -48,6 +81,7 @@ jobs:
           if-no-files-found: error
 
   publish:
+    if: github.event_name == 'release'
     name: Publish to PyPI
     needs: build
     runs-on: ubuntu-latest

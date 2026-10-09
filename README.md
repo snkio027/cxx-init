@@ -347,8 +347,28 @@ specific warning (and the LSP call-site note), rejects unrelated diagnostics and
 classifies the observed libc++ `_Exit` reserved-identifier warning. Real LSP tests cover
 the generated source, semantic-error injection and recovery in both source forms; the
 headers LSP path is checked independently and produces no diagnostics in this environment.
-The Ubuntu publishing workflow verifies the headers path with GCC 14; it does not
-claim Linux import-std support. Do not release without the separate Mac gate.
+The Ubuntu 24.04 workflow enables the headers and vcpkg gates with GCC 14 and
+clangd 23.1.0 on pull requests, main pushes and releases. It builds toml++ with
+binary-cache restoration disabled, verifies dev/san/release, and tests an installed
+wheel. Real LSP requests verify `toml::optional`, `toml::table` and `toml::parse`
+definition locations and open the returned headers in the same client. The
+self-contained alias header must have no semantic errors; separate in-memory
+probes verify semantic-error injection and recovery in all three headers without
+editing the installed files. Missing-include scope and direct-include repair remain independently
+checked. These bounded cases do not establish arbitrary library/header correctness,
+full editor behavior or Linux import-std support. Do not release without the separate
+Mac gate. Only release events can publish to PyPI.
+
+**Known limitation, not a parsing PASS:** pinned toml++ 3.4.0's internal `table.hpp`
+and `parser.hpp` are not self-contained. Their included `date_time.hpp` uses
+`toml::optional` without including its defining `std_optional.hpp`; the public
+`toml.hpp` supplies that order. The regression requires this exact diagnostic at
+the known dependency location, rejects additional semantic errors, and verifies
+that an injected error is still reported and clears on repair. This is a test-only
+classification, not a generated suppression or forced include. A correct jump and
+borrowed compilation flags do not reproduce all declarations from the includer.
+If the pinned library or diagnostic changes, review this case rather than broadening
+the exception. No unqualified internal-header navigation/diagnostics PASS is claimed.
 
 ### Tooling acceptance boundaries
 
@@ -362,7 +382,8 @@ The import-std capability remains **Forward-ready / experimental**, not a blanke
 | Real LSP diagnostics | `didOpen` / `didChange` / versioned `publishDiagnostics`, including failure and recovery | Strict has a known import-std false positive; project-local None mitigates it |
 | Exception policy | `std::println` warns with both `import std` and `<print>` | Not module-specific; no generated catch-all |
 | Hover / member completion / background index | Earlier exploratory observations, not covered by this diagnostics regression | Not a comprehensive or current release gate |
-| Goto definition / rename | Not formally gated | No PASS claim |
+| Goto definition | toml++ alias/type/function locations; self-contained header parsing and error recovery | Internal table/parser limitation is explicitly characterized, not fixed; no arbitrary-library guarantee |
+| Rename | Not formally gated | No PASS claim |
 
 The v0.2.0 static check result did not establish an editor-wide diagnostics PASS.
 The real LSP regression is added after that release; it runs for both checkout and

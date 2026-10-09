@@ -9,8 +9,9 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+from urllib.parse import unquote, urlparse
 
-from clangd_lsp import collect_diagnostics
+from clangd_lsp import collect_diagnostics, collect_evidence
 from test_cxx import CLI, run_cxx
 
 
@@ -41,8 +42,9 @@ def verify_vcpkg_project(test, project, environment, *, import_std=False):
                      f"target_link_libraries({target} PRIVATE tomlplusplus::tomlplusplus)\n")
     source = ('#include <toml++/toml.hpp>\n'
               + ('import std;\n' if import_std else '#include <iostream>\n')
-              + 'int main() {\n'
-                '    const auto config = toml::parse("value = 42");\n'
+              + 'static_assert(sizeof(toml::optional<int>) > 0);\n'
+                'int main() {\n'
+                '    const toml::table config = toml::parse("value = 42");\n'
                 '    std::cout << config["value"].value_or(0) << "\\n";\n'
                 '    return 0;\n}\n')
     (project / "src/main.cpp").write_text(source)
@@ -60,12 +62,62 @@ def verify_vcpkg_project(test, project, environment, *, import_std=False):
         test.assertEqual("-fsanitize=address,undefined" in command, preset == "san")
         test.assertTrue(list((build / "vcpkg_installed").glob("*/lib/libtomlplusplus.a")))
         test.assertEqual(any(Path(item["file"]).name == "std.cppm" for item in entries), import_std)
-    normal, broken, restored = collect_diagnostics(project, environment, [
+    # The alias header is self-contained; table/parser rely on the umbrella's
+    # include order. Exercise both boundaries through actual goto-definition.
+    definitions = (("optional", 2, "impl/std_optional.hpp"),
+                   ("table", 4, "impl/table.hpp"), ("parse", 4, "impl/parser.hpp"))
+    evidence = collect_evidence(project, environment, [
         source, source.replace("return 0;", "return cxx_missing_symbol;"), source,
-    ])
+    ], definition_positions=[{"line": line, "character": source.splitlines()[line].index(f"toml::{symbol}") + 6}
+                             for symbol, line, _ in definitions])
+    normal, broken, restored = evidence["diagnostics"]
     test.assertFalse(any(item.get("severity") == 1 for item in normal + restored), normal + restored)
     test.assertTrue(any(item.get("severity") == 1 and "cxx_missing_symbol" in item["message"]
                         for item in broken), broken)
+    include_roots = list((project / "build/dev/vcpkg_installed").glob("*/include/toml++"))
+    test.assertEqual(len(include_roots), 1, include_roots)
+    include_root = include_roots[0].resolve()
+    test.assertEqual(len(evidence["definitions"]), len(definitions))
+    for (symbol, _, header), locations in zip(definitions, evidence["definitions"]):
+        test.assertTrue(locations, f"no definition for toml::{symbol}")
+        for location in locations:
+            target = Path(unquote(urlparse(location["uri"]).path)).resolve()
+            test.assertEqual(target, include_root / header, location)
+            start, end = location["range"]["start"], location["range"]["end"]
+            test.assertEqual(start["line"], end["line"], location)
+            text = target.read_text().splitlines()[start["line"]]
+            test.assertEqual(text[start["character"]:end["character"]], symbol, location)
+    test.assertEqual({Path(unquote(urlparse(uri).path)).resolve() for uri in evidence["headers"]},
+                     {include_root / header for _, _, header in definitions})
+    for uri, diagnostics in evidence["headers"].items():
+        header = Path(unquote(urlparse(uri).path))
+        with test.subTest(library_header=header.name):
+            errors = [item for item in diagnostics if item.get("severity") == 1]
+            if header.name == "std_optional.hpp":
+                test.assertEqual(errors, [], (uri, diagnostics))
+            else:
+                # Pinned toml++ 3.4.0's date_time.hpp uses toml::optional without
+                # including std_optional.hpp. Record this exact limitation, not
+                # a blanket exemption for dependency errors or failed jumps.
+                test.assertEqual(len(errors), 1, (uri, diagnostics))
+                test.assertEqual(errors[0].get("code"), "no_template_suggest", errors)
+                test.assertEqual(errors[0]["message"].splitlines()[0],
+                                 "In included file: no template named 'optional'; did you mean 'std::optional'?")
+                test.assertIn(f"{include_root}/impl/date_time.hpp:337:3:\n", errors[0]["message"])
+            # Keep the actual installed files untouched. A fresh session avoids
+            # treating stale include-preamble diagnostics as final evidence.
+            content = header.read_text()
+            normal, broken, restored = collect_diagnostics(project, environment, [
+                content, content + "\nint cxx_header_probe = cxx_missing_header_symbol;\n", content,
+            ], path=header)
+            test.assertEqual([item for item in normal if item.get("severity") == 1], errors)
+            test.assertEqual([item for item in restored if item.get("severity") == 1], errors)
+            injected = [item for item in broken if item.get("severity") == 1
+                        and item.get("code") == "undeclared_var_use"]
+            test.assertEqual(len(injected), 1, broken)
+            test.assertEqual(injected[0]["message"], "Use of undeclared identifier 'cxx_missing_header_symbol'")
+            test.assertEqual([item for item in broken if item.get("severity") == 1 and item not in injected], errors)
+            test.assertEqual(header.read_text(), content, "LSP probes must not modify dependency files")
 
 
 class VcpkgTests(unittest.TestCase):
