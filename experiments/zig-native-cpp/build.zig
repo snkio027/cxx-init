@@ -9,6 +9,8 @@ pub fn build(b: *std.Build) void {
     const records = b.option([]const u8, "records", "Existing absolute directory for Clang -MJ records");
     const bias = b.option(i32, "bias", "Generated configuration value") orelse 2;
     const sanitizer = b.option([]const u8, "sanitizer", "none, undefined, or address") orelse "none";
+    const asan_runtime = b.option([]const u8, "asan-runtime", "Experimental: absolute path to an existing ASan shared runtime");
+    const compiler_rt = b.option(bool, "compiler-rt", "Explicitly bundle Zig compiler-rt for the native ASan probe");
     if (!std.mem.eql(u8, sanitizer, "none") and
         !std.mem.eql(u8, sanitizer, "undefined") and
         !std.mem.eql(u8, sanitizer, "address")) @panic("Unknown sanitizer");
@@ -33,11 +35,19 @@ pub fn build(b: *std.Build) void {
     app_mod.addCSourceFile(.{ .file = b.path("src/main.cpp"), .flags = flags(b, records, "main", sanitizer) });
     app_mod.linkLibrary(core);
     const app = b.addExecutable(.{ .name = "zig-cpp-probe", .root_module = app_mod });
+    app.bundle_compiler_rt = compiler_rt;
+    if (asan_runtime) |runtime| {
+        if (!std.mem.eql(u8, sanitizer, "address") or !std.fs.path.isAbsolute(runtime))
+            @panic("-Dasan-runtime requires -Dsanitizer=address and an absolute shared-library path");
+        app_mod.addObjectFile(.{ .cwd_relative = runtime });
+        app_mod.addRPath(.{ .cwd_relative = std.fs.path.dirname(runtime).? });
+    }
     b.installArtifact(app);
 
     const run = b.addRunArtifact(app);
     run.addPassthruArgs();
     b.step("run", "Build and run the C++ application").dependOn(&run.step);
+
     const test_run = b.addRunArtifact(app);
     test_run.addArg(b.fmt("{d}", .{40 + bias}));
     test_run.expectExitCode(0);
